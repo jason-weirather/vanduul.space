@@ -4,7 +4,8 @@
   <link rel="stylesheet" href="css/main.css" />
   <link rel="stylesheet" href="css/game.css" />
   <link rel="shortcut icon" type="image/png" href="img/miniduul.png" />
-  <script src="js/game.js"></script>
+  <?php include('php/game.php');?>
+
   <title>Vanduul Space</title>
 </head>
 <body onload="init();" onresize="stretch_canvas();">
