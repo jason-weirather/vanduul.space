@@ -4,3 +4,10 @@
   /*border: 3px solid #000000;*/
   vertical-align:top;
 }
+#user_input {
+  visibility:hidden;
+  position:absolute;
+  left:100px;
+  top:100px;
+  width:100px;
+}

@@ -11,4 +11,5 @@
 <body onload="init();" onresize="stretch_canvas();">
   <canvas id="game_board">
   </canvas>
+  <input id="user_input" onkeyup="user_input_keypress(event)" type="text"></input>
 </body>

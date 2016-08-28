@@ -1,4 +1,52 @@
 var verbose = true;
+var finished = false;
+var get_input = [];
+
+var galactic_state = new GalacticState();
+//Store persistant variables here
+function GalacticState() {
+  
+}
+
+var stop_counter = 0;
+function check_scan(canvas,context) {
+  if(hero.Velocity()<0.01) stop_counter+=1;
+  else {
+    stop_counter = 0;
+    return;
+  }
+  if(stop_counter < 60*3) return;
+  context.save()
+  context.textAlign="center";
+  var msg = "Scanning";
+  var scan_msgs = ["......",".  ....  .","..  ..  ..","...    ...","..  ..  ..",".  ....  ."];
+  drop_shadow(context,msg,20,0,-50)
+  scale_counter = Math.floor(stop_counter/60)
+  drop_shadow(context,scan_msgs[scale_counter%scan_msgs.length],20,0,-30)   
+  context.restore()
+  if(stop_counter < 60*6) return;
+  // Now look for planet
+  var min_range = 100;
+  var best_p = null;
+  for(var i=0; i < planets.length; i++) {
+    var pc = galactic_coordinates.PlayerCoordinates()
+    var dx =planets[i].x - pc.x
+    var dy = planets[i].y - pc.y
+    var d = Math.sqrt(dx*dx+dy*dy);
+    d -=planets[i].r;
+    if(d > min_range) continue;
+    min_range = d
+    best_p = i
+  }
+  if(best_p) {
+    // We have a planet
+    if(planets[best_p].name=='') {
+      get_input = ['planet name',best_p];
+      is_paused = true;
+      return;
+    }
+  }
+}
 
 
 //Hold information about center sprite
@@ -71,10 +119,6 @@ function Planet() {
     var xb = Math.floor(self.x/blocksize);
     //if(self.x<0) xb+=1;
     var yb = Math.floor(self.y/blocksize);
-    //if(self.y<0) yb+=1;
-    //if(xb==-1&&yb==-1){
-    //  print(self.x+','+self.y)
-    //}
     return {xblock:xb,yblock:yb};
   }
 }
@@ -131,6 +175,13 @@ function Particle(xinit,yinit) {
 var mousePos = {xreal:0,yreal:0,x:0,y:0,xcanvas:0,ycanvas:0,theta:0}
 
 function init() {
+  loc = window.location.href.replace(/\//g,'');
+  loc = loc.replace(/http:/g,'');
+  print(loc);
+  if(!(loc=='vanduul.space')) {
+    finished = true;
+    return;
+  }
   stretch_canvas();
   var canvas = document.getElementById("game_board");
   var context = canvas.getContext("2d");
@@ -151,8 +202,46 @@ function init() {
 }
 
 function mainLoop() {
-  if(!is_paused)  update_canvas();
+  if(!is_paused && !finished)  update_canvas();
+  if(is_paused && get_input.length > 0) {
+    process_input();
+  }
   requestAnimationFrame(mainLoop);
+}
+
+function process_input() {
+  var canvas = document.getElementById("game_board");
+  var context = canvas.getContext("2d");
+  // We can name planet
+  var elm = document.getElementById("user_input")
+  if(elm.style.visibility!="visible") {
+    context.save()
+    context.textAlign="center";
+    var msg = "Please name the planet";
+    drop_shadow(context,msg,40,0,-150)
+    context.restore()
+  }
+  elm.style.visibility = "visible";
+  elm.maxLength = "20";
+  elm.style.left = Math.floor(canvas.width/2-50 )+"px";
+  elm.style.top = Math.floor(canvas.height/2-100)+"px";
+  //check for the entry
+  if(entry_complete) {
+    entry_complete = false;
+    elm.style.visibility = "hidden";
+    is_paused=false;
+    planets[get_input[1]].name = elm.value;
+    elm.value = '';
+    get_input = [];
+  }
+}
+
+var entry_complete = false
+function user_input_keypress(e) {
+  e.which = e.which || e.keyCode;
+  if(e.which==13) {
+    entry_complete = true
+  }
 }
 
 function draw_hero_projectiles(canvas,context) {
@@ -225,6 +314,11 @@ function draw_particles(canvas,context) {
   particles = buffer
 }
 
+function pad(num,size) {
+  var s= "00000000000"+num;
+  return s.substr(s.length-size);
+}
+
 function update_canvas() {
   var canvas = document.getElementById("game_board");
   var context = canvas.getContext("2d");
@@ -234,16 +328,7 @@ function update_canvas() {
   context.clearRect(0,0,canvas.width,canvas.height);
   context.restore();
 
-  //Draw mouse coordinate for debugging purposes
-  //context.font='20pt Calibri';
-  //context.fillStyle='white';
-  pv = galactic_coordinates.PlayerCoordinates()
-  msg = Math.round(pv.x)+','+Math.round(pv.y)
-  drop_shadow(context,msg,20,-1*canvas.width/2+30,-1*canvas.height/2+30)
-  //context.fillText(Math.round(pv.x)+','+Math.round(pv.y),-1*canvas.width/2+30,-1*canvas.height/2+30);
-  
   //Now draw cooler stuff
-
 
   update_hero_position(canvas);
   update_galactic_coordinates();
@@ -252,6 +337,37 @@ function update_canvas() {
   draw_particles(canvas,context);
   draw_hero(canvas,context);
   draw_hero_projectiles(canvas,context);
+  check_scan(canvas,context);
+  draw_hud(canvas,context);
+}
+
+function draw_hud(canvas,context) {
+  //Draw mouse coordinate for debugging purposes
+  //context.font='20pt Calibri';
+  //context.fillStyle='white';
+  pv = galactic_coordinates.PlayerCoordinates()
+  var quad = 'A';
+  var rx =Math.round(pv.x/500);
+  var ry =Math.round(pv.y/500);
+  if(rx < 0 && ry >=0) quad = 'B';
+  else if(rx < 0 && ry < 0) quad = 'C';
+  else if(rx >= 0 && ry < 0) quad = 'D';
+  msg = quad+'/'+pad(Math.abs(rx),8)+'/'+pad(Math.abs(ry),8);
+  drop_shadow(context,msg,20,-1*canvas.width/2+30,-1*canvas.height/2+30)
+  //context.fillText(Math.round(pv.x)+','+Math.round(pv.y),-1*canvas.width/2+30,-1*canvas.height/2+30);
+
+  //display throttle
+  msg = Math.round(hero.throttle*100)+'%';
+  drop_shadow(context,msg,20,-1*canvas.width/2+30,-1*canvas.height/2+60);
+  msg = Math.round(hero.Velocity()*60)+'m/s';
+  drop_shadow(context,msg,20,-1*canvas.width/2+100,-1*canvas.height/2+60);
+  //context.fillText(Math.round(hero.throttle*100)+'%',-1*canvas.width/2+30,-1*canvas.height/2+60);
+  // context.fillText(Math.round(hero.Velocity()*60)+'m/s',-1*canvas.width/2+100,-1*canvas.height/2+60);
+
+  //display help
+  msg = 'Press SPACE for PAUSE.  Left click to FIRE.'
+  drop_shadow(context,msg,16,-1*canvas.width/2+30,canvas.height/2-30)
+
 }
 
 function update_bodies() {
@@ -373,7 +489,7 @@ function draw_bodies(canvas,context) {
     context.fillStyle='white';
     context.textAlign="center";
     context.font="20px Ariel";
-    context.fillText("Middlehorndog",cc.x,cc.y)
+    context.fillText(planets[i].name,cc.x,cc.y)
     context.restore();
   }
   //context.save()
@@ -464,17 +580,6 @@ function draw_hero(canvas,context) {
   context.stroke(); 
   context.restore()
 
-  //display throttle
-  msg = Math.round(hero.throttle*100)+'%';
-  drop_shadow(context,msg,20,-1*canvas.width/2+30,-1*canvas.height/2+60);
-  msg = Math.round(hero.Velocity()*60)+'m/s';
-  drop_shadow(context,msg,20,-1*canvas.width/2+100,-1*canvas.height/2+60);
-  //context.fillText(Math.round(hero.throttle*100)+'%',-1*canvas.width/2+30,-1*canvas.height/2+60);
-  // context.fillText(Math.round(hero.Velocity()*60)+'m/s',-1*canvas.width/2+100,-1*canvas.height/2+60);
-
-  //display help
-  msg = 'Press SPACE for PAUSE.  Left click to FIRE.'
-  drop_shadow(context,msg,16,-1*canvas.width/2+30,canvas.height/2-30)
 }
 
 function drop_shadow(context,msg,font_size,x,y) {
@@ -534,6 +639,7 @@ function stretch_canvas() {
 var is_paused = false;
 
 function toggle_pause() {
+  if(get_input.length > 0) return; // different kind of apuse
   if(is_paused) is_paused = false;
   else is_paused = true;
   if(is_paused) {
@@ -553,7 +659,7 @@ function toggle_pause() {
 // Post: if verbose is true then print to console
 function print(msg) {
   if(verbose) { 
-    console.log(msg);
+    console.log('$ '+msg);
   }
 }  
 
