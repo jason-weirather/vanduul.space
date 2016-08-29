@@ -48,6 +48,22 @@ function check_scan(canvas,context) {
   }
 }
 
+// accuracy: control spread of theta upon fire
+// speed: how fast projectile travels
+// damage:
+// range: pixels projectile can travel before disappearing
+//{accuracy:0.95,speed:4,size:2,damage:3,range:800}
+
+function HardPoint() {
+  this.x = 0;
+  this.y = 0;
+  this.theta = 0;
+  this.accuracy=0.95;
+  this.speed=4;
+  this.size=2;
+  this.damage=3;
+  this.range=800;
+}
 
 //Hold information about center sprite
 //x: current x position
@@ -60,7 +76,6 @@ function check_scan(canvas,context) {
 //turn_rate: how many radians you are allowed to turn per tick
 var hero = new Ship();
 
-
 function Ship() {
   this.x=0;
   this.y=0;
@@ -71,7 +86,10 @@ function Ship() {
   this.max_dist=0.2;
   this.engine_power=5;
   this.turn_rate=0.05;
+  this.current_turn=0;
   this.acceleration=0.5;
+  this.hard_points = []
+  this.hit_box = 10;
   var self = this;
   this.Velocity = function() {
     return self.engine_power*self.throttle;
@@ -132,22 +150,25 @@ function GalacticCoordinates() {
   this.PlayerCoordinates = function() {
     return {x:hero.x+self.x_origin,y:hero.y+self.y_origin};
   }
+  // convert screen cartesian to galactic
+  this.ToGalactic = function(x_car,y_car) {
+    return {x:self.x_origin+x_car,y:self.y_origin+y_car};
+  }
   this.ToCartesian = function(x_gal,y_gal) {
     return {x:x_gal-self.x_origin,y:y_gal-self.y_origin};
   }
 }
 
-// accuracy: control spread of theta upon fire
-// speed: how fast projectile travels
-// damage:
-// range: pixels projectile can travel before disappearing
-var hero_weapon = {accuracy:0.95,speed:4,size:2,damage:3,range:800}
 
 var player_projectiles = []
 //one player bullet
 function PlayerProjectile(xinit,yinit,theta,weapon) {
   this.x = xinit;
   this.y = yinit;
+  var weapon_r = Math.sqrt(weapon.x*weapon.x+weapon.y*weapon.y)
+  //print(weapon_r);
+  this.x += weapon_r*Math.cos(theta+weapon.theta);
+  this.y += weapon_r*Math.sin(theta+weapon.theta);
   this.theta = theta+2*(Math.random()-0.5)*(1-weapon.accuracy);
   this.weapon = weapon;
   this.traversed = 0;
@@ -163,8 +184,8 @@ function Particle(xinit,yinit) {
   min_drag = 0
   max_drag = 0.3
   min_size = 2
-  max_size = 5
-  this.alpha = 0.1 // transparency
+  max_size = 10
+  this.alpha = 0.3 // transparency
   this.size = Math.random()*(max_size-min_size)+min_size
   this.drag = Math.random()*(max_drag-min_drag)+min_drag
   this.ttl = Math.floor(min_frames + Math.random()*(max_frames-min_frames)) // frames left
@@ -198,6 +219,13 @@ function init() {
       toggle_pause();
     }
   }
+
+  // Can set up some variables
+  var hero_weapon = new HardPoint();
+  hero_weapon.x = 15
+  hero_weapon.y = 0
+  hero.hard_points.push(hero_weapon);
+
   mainLoop();
 }
 
@@ -304,8 +332,8 @@ function draw_particles(canvas,context) {
     context.arc(c.x,c.y,p.size,2*Math.PI,false);
     context.fillStyle = 'black';
     context.fill();
-    context.strokeStyle = 'gray';
-    context.stroke();
+    //context.strokeStyle = 'gray';
+    //context.stroke();
     context.restore();
     p.ttl--;
     if(p.ttl<=0) continue;  // get a list of done indecies
@@ -327,6 +355,8 @@ function update_canvas() {
   context.setTransform(1,0,0,1,0,0);
   context.clearRect(0,0,canvas.width,canvas.height);
   context.restore();
+
+  
 
   //Now draw cooler stuff
 
@@ -524,7 +554,6 @@ function canvas_coord(x,y) {
 }
 
 function update_hero_position(canvas) {
-
   //set throttle
   r = Math.sqrt(mousePos.x*mousePos.x+mousePos.y*mousePos.y)
   max_r = Math.min(hero.max_throttle*canvas.width/2,hero.max_throttle*canvas.height/2)
@@ -534,52 +563,154 @@ function update_hero_position(canvas) {
   max_r = Math.min(canvas.width/2,canvas.height/2);
   r = hero.throttle;
   r_goal = hero.max_dist*max_r*r;
+
   theta_goal = Math.atan2(mousePos.y,mousePos.x)
-  // catesian coordinates of where we want to go
-  x_goal = r_goal*Math.cos(theta_goal)
-  y_goal = r_goal*Math.sin(theta_goal)
-  d = Math.sqrt((x_goal-hero.x)*(x_goal-hero.x)+(y_goal-hero.y)*(y_goal-hero.y))
-  if(d < hero.acceleration) {
-    // we can update distance to current
-    hero.x = x_goal
-    hero.y = y_goal
-  } else {
-    temp_theta = Math.atan2(hero.y-y_goal,hero.x-x_goal)
-    delta_y = Math.sin(temp_theta)*hero.acceleration
-    delta_x = Math.cos(temp_theta)*hero.acceleration
-    hero.x = hero.x-delta_x
-    hero.y = hero.y-delta_y
-  }
   if(hero.theta > Math.PI) hero.theta -= 2*Math.PI;
   if(hero.theta <= -Math.PI) hero.theta += 2*Math.PI;
+  // can get our turning direction
+  hero.current_turn = 0;
   if(Math.abs(hero.theta-theta_goal) < hero.turn_rate) {
     hero.theta = theta_goal;
   } else if(hero.theta >= Math.PI/2 && theta_goal <= -Math.PI/2) {
     hero.theta += hero.turn_rate;
+    hero.current_turn = 1;
   } else if(hero.theta <= -Math.PI/2 && theta_goal >= Math.PI/2) {
     hero.theta -= hero.turn_rate;
+    hero.current_turn = -1;
   } else if(hero.theta > theta_goal) {
     hero.theta -= hero.turn_rate;
+    hero.current_turn = -1;
   } else {
     hero.theta += hero.turn_rate;
+    hero.current_turn = 1;
   }
-  //hero.x = xmov
-  //hero.y = ymov
+
+  // catesian coordinates of where we want to go
+  var x_goal = r_goal*Math.cos(theta_goal)
+  var y_goal = r_goal*Math.sin(theta_goal)
+  var xnext = hero.x  //our current value
+  var ynext = hero.y  //our current value
+  var d = Math.sqrt((x_goal-hero.x)*(x_goal-hero.x)+(y_goal-hero.y)*(y_goal-hero.y))
+  if(d < hero.acceleration) {
+    // we can update distance to current
+    xnext = x_goal
+    ynext = y_goal
+  } else {
+    var temp_theta = Math.atan2(hero.y-y_goal,hero.x-x_goal)
+    delta_y = Math.sin(temp_theta)*hero.acceleration
+    delta_x = Math.cos(temp_theta)*hero.acceleration
+    xnext = hero.x-delta_x
+    ynext = hero.y-delta_y
+  }
+  // Check the values
+  gc = galactic_coordinates.ToGalactic(xnext,ynext);
+  if(check_no_collisions(canvas,hero,planets)) {
+    // safe to update
+    hero.y =ynext;
+    hero.x =xnext;
+  } else {
+    hero.throttle = -3;
+    print('collision')
+  }
 }
+
+function check_no_collisions(canvas,ship,planets) {
+  var gc = galactic_coordinates.ToGalactic(ship.x,ship.y);
+  var max_distance = Math.max(canvas.width+1000,canvas.height+1000);
+  for(i=0;i<planets.length;i++) {
+    var p = planets[i];
+    var d2 = (p.x-gc.x)*(p.x-gc.x)+(p.y-gc.y)*(p.y-gc.y);
+    if(d2 > max_distance*max_distance) continue;
+    // check closer for neighboring planets
+    //if((p.x-x)*(p.x-x)+(p.y-y)*(p.y-y) > ) continue;
+    //print(p.r);
+    if(Math.sqrt(d2) <= p.r+hero.hit_box) return false;
+  }
+  return true;
+}
+
 
 function draw_hero(canvas,context) {
   // global hero has stores state
   context.save();
   //context.rotate(theta);
-  context.beginPath();
-
+  //context.beginPath();
   c = canvas_coord(hero.x,hero.y)
   context.translate(c.x,c.y);
-  context.rotate(-hero.theta+Math.PI/2);
-  context.rect(-4,-2,8,4);
-  context.stroke(); 
-  context.restore()
+  //context.rotate(hero.Theta()+Math.PI/2);
+  context.rotate(-hero.theta);
+  //context.rect(-4,-2,8,4);
+  //context.stroke(); 
+  //context.restore()
 
+  // version 2
+  context.save();
+  context.translate(-1,-1);
+  context.globalAlpha=0.3;
+  context.lineWidth=3;
+  context.strokeStyle='white';
+  draw_terrapin(context);
+  context.restore();
+  context.globalAlpha=1;
+  context.lineWidth=1;
+  context.strokeStyle='black';
+  draw_terrapin(context);
+  context.restore();
+
+}
+
+function draw_terrapin(context) {
+  context.save();
+
+  ellipse(context,0,0,15,10);
+  ellipse(context,9,0,3,2);
+  ellipse(context,-3,0,4,4);
+  ellipse(context,-3,0,6,6);
+
+  rectangle(context,15,-1.5,3,3);
+
+  rectangle(context,6,-12,4,4);
+  rectangle(context,6,8,4,4);
+
+  rectangle(context,-13,-12,5,5);
+  rectangle(context,-13,7,5,5);
+
+  var trail_size = 3;
+  var t = Math.round(hero.throttle*trail_size);
+  var t_right = t;
+
+  context.save();
+  context.globalAlpha = 0.15;
+  if(hero.current_turn==1) t_right=Math.floor(t_right/2);
+  for(var i=0; i < t_right; i++) {
+    rectangle(context,-17-(trail_size*i),-12,1,4);
+  }
+  if(hero.current_turn==1) rectangle(context,6,14,3,1);
+  var t_left = t;
+  if(hero.current_turn==-1) t_left=Math.floor(t_left/2);
+  for(var i=0; i < t_left; i++) {
+    rectangle(context,-17-(trail_size*i),7,1,4);
+  }
+  if(hero.current_turn==-1) rectangle(context,6,-16,3,1);
+  context.restore();
+  context.restore();
+}
+
+function ellipse(context,cx,cy,rx,ry) {
+  context.save();
+  context.beginPath();
+  context.translate(cx-rx,cy-ry);
+  context.scale(rx,ry);
+  context.arc(1,1,1,0,2*Math.PI,false);
+  context.restore();
+  context.stroke();
+}
+
+function rectangle(context,cx,cy,wd,ht) {
+  context.save();
+  context.rect(cx,cy,wd,ht);
+  context.restore();
+  context.stroke();
 }
 
 function drop_shadow(context,msg,font_size,x,y) {
@@ -597,8 +728,10 @@ function drop_shadow(context,msg,font_size,x,y) {
 // Listener callback for mouse click
 function fire_player_weapon(canvas,e) {
   var context = canvas.getContext("2d")
-  b = new PlayerProjectile(hero.x,hero.y,hero.theta,hero_weapon)
-  player_projectiles.push(b)
+  for(var i=0; i < hero.hard_points.length; i++) {
+    b = new PlayerProjectile(hero.x,hero.y,hero.theta,hero.hard_points[i])
+    player_projectiles.push(b)
+  }
 }
 
 // Listener for mouse move
