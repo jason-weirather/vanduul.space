@@ -103,7 +103,7 @@ function Ship() {
   this.cartesian_y=0;
   this.galactic_x=0;
   this.galactic_y=0;
-  this.theta=0;
+  this.theta=0; // angle of sprite
   this.throttle=0;
   this.min_throttle=0.2;
   this.max_throttle=0.9;
@@ -117,10 +117,10 @@ function Ship() {
   this.health = 100;
   var self = this;
   this.Velocity = function() {
-    return self.engine_power*self.throttle;
+     return self.engine_power*self.throttle;
   }
-  this.Theta = function() {
-    return Math.atan2(self.y,self.x);
+  this.OriginTheta = function() { // Angle offset from center of map
+    return Math.atan2(self.cartesian_y,self.cartesian_x);
   }
   this.PressTrigger=function(){
     self.trigger = "down";
@@ -383,7 +383,7 @@ function draw_particles(canvas,context) {
     r = hero.Velocity()
     r = r-r*p.drag
 
-    theta = Math.atan2(hero.y,hero.x)
+    theta = Math.atan2(hero.cartesian_y,hero.cartesian_x)
     p.x = p.x-Math.cos(theta)*r
     p.y = p.y-Math.sin(theta)*r
     c = canvas_coord(p.x,p.y)
@@ -449,7 +449,7 @@ function check_triggers() {
       if(w.trigger_frame%w.rof==0) { 
         //var context = canvas.getContext("2d")
         //for(var i=0; i < hero.hard_points.length; i++) {
-        b = new PlayerProjectile(hero.x,hero.y,hero.theta,w)
+        b = new PlayerProjectile(hero.cartesian_x,hero.cartesian_y,hero.theta,w)
         player_projectiles.push(b)
       }
       w.trigger_frame += 1;
@@ -461,8 +461,8 @@ function draw_enemies(canvas,context) {
   for(var i=0;i<enemies.length;i++){
     var e = enemies[i];
     context.save();
-    var cc = galactic_coordinates.ToCartesian(e.x,e.y);
-    var c = canvas_coord(cc.x,cc.y)
+    //var cc = galactic_coordinates.ToCartesian(e.x,e.y);
+    var c = canvas_coord(e.cartesian_x,e.cartesian_y)
     context.translate(c.x,c.y);
     context.rotate(-e.theta);
     draw_scythe(context,enemies[i]);
@@ -479,8 +479,9 @@ function update_enemies(canvas) {
     cy = (Math.random()*canvas.height)- canvas.height/2;
     // use galactic coordinates for the enmies
     gc = galactic_coordinates.ToGalactic(cx,cy);
-    e.x = gc.x;
-    e.y = gc.y;
+    e.SetGalactic(gc.x,gc.y);
+    //e.x = gc.x;
+    //e.y = gc.y;
     e.min_throttle = 0;
     e.max_throttle = 1;
     e.throttle = 0.5;
@@ -498,8 +499,11 @@ function update_enemies(canvas) {
     //print(e.Velocity())
     newx = e.Velocity()*Math.cos(e.theta);
     newy = e.Velocity()*Math.sin(e.theta);
-    e.x+=newx
-    e.y+=newy
+    newx+=e.galactic_x;
+    newy+=e.galactic_y;
+    e.SetGalactic(newx,newy);
+    //e.x+=newx
+    //e.y+=newy
   }
   // check for projectile hits
   //for(var i = 0; i < player_projectiles.length; i++) {
@@ -526,10 +530,10 @@ function draw_hud(canvas,context) {
   //Draw mouse coordinate for debugging purposes
   //context.font='20pt Calibri';
   //context.fillStyle='white';
-  pv = galactic_coordinates.PlayerCoordinates()
+  //pv = galactic_coordinates.PlayerCoordinates()
   var quad = 'A';
-  var rx =Math.round(pv.x/500);
-  var ry =Math.round(pv.y/500);
+  var rx =Math.round(hero.galactic_x/500);
+  var ry =Math.round(hero.galactic_y/500);
   if(rx < 0 && ry >=0) quad = 'B';
   else if(rx < 0 && ry < 0) quad = 'C';
   else if(rx >= 0 && ry < 0) quad = 'D';
@@ -692,7 +696,7 @@ function draw_bodies(canvas,context) {
 
 function update_galactic_coordinates() {
   var r = hero.Velocity()
-  var theta = hero.Theta()
+  var theta = hero.OriginTheta()
   var x = r*Math.cos(theta)
   var y = r*Math.sin(theta)
   galactic_coordinates.x_origin += x
@@ -739,26 +743,27 @@ function update_hero_position(canvas) {
   // catesian coordinates of where we want to go
   var x_goal = r_goal*Math.cos(theta_goal)
   var y_goal = r_goal*Math.sin(theta_goal)
-  var xnext = hero.x  //our current value
-  var ynext = hero.y  //our current value
-  var d = Math.sqrt((x_goal-hero.x)*(x_goal-hero.x)+(y_goal-hero.y)*(y_goal-hero.y))
+  var xnext = hero.cartesian_x  //our current value
+  var ynext = hero.cartesian_y  //our current value
+  var d = Math.sqrt((x_goal-hero.cartesian_x)*(x_goal-hero.cartesian_x)+(y_goal-hero.cartesian_y)*(y_goal-hero.cartesian_y))
   if(d < hero.acceleration) {
     // we can update distance to current
     xnext = x_goal
     ynext = y_goal
   } else {
-    var temp_theta = Math.atan2(hero.y-y_goal,hero.x-x_goal)
+    var temp_theta = Math.atan2(hero.cartesian_y-y_goal,hero.cartesian_x-x_goal)
     delta_y = Math.sin(temp_theta)*hero.acceleration
     delta_x = Math.cos(temp_theta)*hero.acceleration
-    xnext = hero.x-delta_x
-    ynext = hero.y-delta_y
+    xnext = hero.cartesian_x-delta_x
+    ynext = hero.cartesian_y-delta_y
   }
   // Check the values
-  gc = galactic_coordinates.ToGalactic(xnext,ynext);
+  //gc = galactic_coordinates.ToGalactic(xnext,ynext);
   if(check_no_collisions(canvas,hero,planets) && check_no_collisions(canvas,hero,enemies)) {
     // safe to update
-    hero.y =ynext;
-    hero.x =xnext;
+    //hero.y =ynext;
+    //hero.x =xnext;
+    hero.SetCartesian(xnext,ynext);
   } else {
     hero.throttle = -3;
     hero.theta -=0.5
@@ -772,7 +777,7 @@ function collision_details(canvas,ship,projectiles) {
   for(i=0;i<projectiles.length;i++) {
     var p = projectiles[i];
     var gc = galactic_coordinates.ToGalactic(p.x,p.y);
-    var d2 = (gc.x-ship.x)*(gc.x-ship.x)+(gc.y-ship.y)*(gc.y-ship.y);
+    var d2 = (gc.x-ship.galactic_x)*(gc.x-ship.galactic_x)+(gc.y-ship.galactic_y)*(gc.y-ship.galactic_y);
     if(d2 > max_distance*max_distance) continue;
     // check closer for neighboring planets
     //if((p.x-x)*(p.x-x)+(p.y-y)*(p.y-y) > ) continue;
@@ -804,7 +809,7 @@ function check_no_collisions(canvas,ship,planets) {
 function draw_hero(canvas,context) {
   // global hero has stores state
   context.save();
-  c = canvas_coord(hero.x,hero.y)
+  c = canvas_coord(hero.cartesian_x,hero.cartesian_y)
   context.translate(c.x,c.y);
   context.rotate(-hero.theta);
   draw_terrapin(context,hero);
