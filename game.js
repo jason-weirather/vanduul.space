@@ -1,6 +1,21 @@
 var verbose = true;
 var finished = false;
+var mouseState = "up";
+
 var get_input = [];
+
+var fx_animations = []
+function fx(gx,gy,duration,size) {
+  this.x = gx;
+  this.y = gy;
+  this.duration = duration;
+  this.ttl = this.duration; //countdown till finished
+  this.size = size;
+  var self = this;
+  this.Draw(context) = function() {
+    return;
+  }
+}
 
 var galactic_state = new GalacticState();
 //Store persistant variables here
@@ -62,8 +77,10 @@ function HardPoint() {
   this.accuracy=0.95;
   this.speed=4;
   this.size=2;
-  this.damage=3;
+  this.damage=30;
   this.range=800;
+  this.rof=5; //frames per shot
+  this.trigger_frame=0; //count frames of trigger depress
 }
 
 var enemies = []
@@ -80,8 +97,12 @@ var enemies = []
 var hero = new Ship();
 
 function Ship() {
-  this.x=0; // using Cartesian coordinates for 
-  this.y=0;
+  this.x=0; // using Cartesian coordinates for depricated
+  this.y=0; // depricated
+  this.cartesian_x=0;
+  this.cartesian_y=0;
+  this.galactic_x=0;
+  this.galactic_y=0;
   this.theta=0;
   this.throttle=0;
   this.min_throttle=0.2;
@@ -93,12 +114,38 @@ function Ship() {
   this.acceleration=0.5;
   this.hard_points = []
   this.r = 10;
+  this.health = 100;
   var self = this;
   this.Velocity = function() {
     return self.engine_power*self.throttle;
   }
   this.Theta = function() {
     return Math.atan2(self.y,self.x);
+  }
+  this.PressTrigger=function(){
+    self.trigger = "down";
+  }
+  this.ReleaseTrigger=function(){
+    self.trigger = "up";
+    for(var i = 0; i < self.hard_points.length; i++) {
+      self.hard_points[i].trigger_frames = 0;
+    }
+  }
+  // Set a new coordinate here (from center of screen as origin)
+  this.SetCartesian=function(x,y){
+    self.cartesian_x = x;
+    self.cartesian_y = y;
+    var gc = galactic_coordinates.ToGalactic(x,y);
+    self.galactic_x = gc.x;
+    self.galactic_y = gc.y;
+  }
+  // Set a new coordinate here (from center of galaxy as origin)
+  this.SetGalactic=function(x,y){
+    self.galactic_x = x;
+    self.galactic_y = y;
+    var cc = galactic_coordinates.ToCartesian(x,y);
+    self.cartesian_x = cc.x;
+    self.cartesian_y = cc.y;
   }
 }
 
@@ -150,7 +197,7 @@ function GalacticCoordinates() {
   this.x_origin = 0;
   this.y_origin = 0;
   var self = this;
-  this.PlayerCoordinates = function() {
+  this.PlayerCoordinates = function() {  //depreciated.
     return {x:hero.x+self.x_origin,y:hero.y+self.y_origin};
   }
   // convert screen cartesian to galactic
@@ -215,10 +262,21 @@ function init() {
     //update global
     mousePos = get_mouse_position(canvas,e);
   });
-  canvas.addEventListener('click',function(e) {
+  //canvas.addEventListener('click',function(e) {
+  //  //update global
+  //  fire_player_weapon(canvas,e);
+  //});
+  document.onmousedown = function(e) {
     //update global
-    fire_player_weapon(canvas,e);
-  });
+    mouseState = 'down';
+    hero.PressTrigger();
+  }
+  document.onmouseup = function(e) {
+    //update global
+    mouseState = 'up';
+    // release trigger
+    hero.ReleaseTrigger();
+  }
   document.body.onkeyup = function(e) {
     if(e.keyCode==32) {
       toggle_pause();
@@ -359,8 +417,11 @@ function update_canvas() {
   context.setTransform(1,0,0,1,0,0);
   context.clearRect(0,0,canvas.width,canvas.height);
   context.restore();
+  // initialize common variables
+  context.strokeStyle='black';
+  context.globalAlpha = 1;
+  context.lineWidth=1;
 
-  
 
   //Now draw cooler stuff
 
@@ -374,8 +435,28 @@ function update_canvas() {
   draw_hero(canvas,context);
   draw_hero_projectiles(canvas,context);
   check_scan(canvas,context);
+  check_triggers();
   draw_hud(canvas,context);
 }
+
+function check_triggers() {
+  if(hero.trigger == 'down') {
+    // update hero ship
+    for(var i = 0;i < hero.hard_points.length;i++) {
+      w = hero.hard_points[i]
+      //w.rof
+      //w.trigger_frame
+      if(w.trigger_frame%w.rof==0) { 
+        //var context = canvas.getContext("2d")
+        //for(var i=0; i < hero.hard_points.length; i++) {
+        b = new PlayerProjectile(hero.x,hero.y,hero.theta,w)
+        player_projectiles.push(b)
+      }
+      w.trigger_frame += 1;
+    }
+  }     
+}
+
 function draw_enemies(canvas,context) {
   for(var i=0;i<enemies.length;i++){
     var e = enemies[i];
@@ -384,30 +465,7 @@ function draw_enemies(canvas,context) {
     var c = canvas_coord(cc.x,cc.y)
     context.translate(c.x,c.y);
     context.rotate(-e.theta);
-    context.save();
-
-    context.translate(-1,-1);
-    context.globalAlpha=1;
-    context.lineWidth=2;
-    context.strokeStyle='red';
-    draw_scythe(context);
-    context.restore();
-    context.restore();
-  }
-  for(var i=0;i<enemies.length;i++){
-    //continue; 
-    var e = enemies[i];
-    context.save();
-    var cc = galactic_coordinates.ToCartesian(e.x,e.y);
-    var c = canvas_coord(cc.x,cc.y)
-    context.translate(c.x,c.y);
-    context.rotate(-e.theta);
-    context.save();
-    context.globalAlpha=1;
-    context.lineWidth=1;
-    context.strokeStyle='black';
-    draw_scythe(context);
-    context.restore();
+    draw_scythe(context,enemies[i]);
     context.restore();
   }
 }
@@ -445,8 +503,14 @@ function update_enemies(canvas) {
   }
   // check for projectile hits
   //for(var i = 0; i < player_projectiles.length; i++) {
+  var enemy_buffer = [];
   for(var i=0; i < enemies.length; i++) {
     var hits = collision_details(canvas,enemies[i],player_projectiles);
+    for(var j = 0; j < hits.length; j++) {
+      enemies[i].health-=player_projectiles[hits[j]].weapon.damage;
+      //print(enemies[i].health);
+    }
+    if(enemies[i].health > 0) enemy_buffer.push(enemies[i]);
     var buffer = [];
     if(hits.length > 0) {
       for(var j = 0; j < player_projectiles.length; j++) {
@@ -455,6 +519,7 @@ function update_enemies(canvas) {
     } else buffer = player_projectiles;
     player_projectiles = buffer;
   }
+  enemies = enemy_buffer;
 }
 
 function draw_hud(canvas,context) {
@@ -697,7 +762,7 @@ function update_hero_position(canvas) {
   } else {
     hero.throttle = -3;
     hero.theta -=0.5
-    print('collision')
+    //print('collision')
   }
 }
 
@@ -714,7 +779,7 @@ function collision_details(canvas,ship,projectiles) {
     //print(p.r);
     if(Math.sqrt(d2) <= p.r+ship.r) {
       collisions.push(i);
-      print('colission')
+      //print('colission')
     }
   }
   return collisions;
@@ -742,40 +807,56 @@ function draw_hero(canvas,context) {
   c = canvas_coord(hero.x,hero.y)
   context.translate(c.x,c.y);
   context.rotate(-hero.theta);
-
-  context.save();
-  context.translate(-1,-1);
-  context.globalAlpha=0.3;
-  context.lineWidth=3;
-  context.strokeStyle='white';
-  draw_terrapin(context);
+  draw_terrapin(context,hero);
   context.restore();
-  context.globalAlpha=1;
-  context.lineWidth=1;
-  context.strokeStyle='black';
-  draw_terrapin(context);
-  context.restore();
-  // test drawing other ship here
-  //context.save();
-  //context.translate(0,100);
-  //draw_scythe(context);
-  //context.restore();
 }
 
 
-function draw_scythe(context) {
+function draw_scythe(context,ship) {
   context.save();
-  //ellipse(context,0,0,2,2);
+  context.fillStyle="#424242";
   rectangle(context,-15,-4,13,8);
   rectangle(context,-3,-2,8,4);
+  context.fillStyle="#A4A4A4";
   triangle(context,-10,3,-13,20,25,20);
   triangle(context,-10,23,-5,30,25,23);
+  context.fillStyle="#D8D8D8";
   rectangle(context,-10,19,35,5);
+  context.fillStyle="#A4A4A4";
   triangle(context,-10,-3,-13,-10,10,-10);
+  context.fillStyle="#424242 ";
   rectangle(context,-13,-13,25,4);
   rectangle(context,6,-1,2,2);
+  context.fillStyle="#D8D8D8";
   rectangle(context,-18,-5,10,4);
   rectangle(context,-18,1 ,10,4);
+
+  //add engines
+  var trail_size = 4;
+  var trail_color = "254,100,46";
+  var min_alpha = 0.1;
+  var max_alpha = 0.9;
+  var t = Math.round(ship.throttle*trail_size);
+
+  var t_right = t;
+  //engine 1
+  if(ship.current_turn==1) t_right=Math.floor(t_right/2);
+  for(var i=0; i < t_right; i++) {
+    //context.strokeStyle="rgba(0,0,"+Math.floor(255*i/t_right)+")";
+    var alpha = (1-i/t_right)*(max_alpha-min_alpha)+min_alpha
+    context.strokeStyle="rgba("+trail_color+","+alpha+")";
+    rectangle(context,-22-(trail_size*i),-6,1,3);
+  }
+
+  var t_left = t;
+  // engine 2
+  if(ship.current_turn==-1) t_left=Math.floor(t_left/2);
+  for(var i=0; i < t_left; i++) {
+    var alpha = (1-i/t_left)*(max_alpha-min_alpha)+min_alpha
+    context.strokeStyle="rgba("+trail_color+","+alpha+")";
+    rectangle(context,-22-(trail_size*i),1,1,3);
+  }
+
   context.restore();
 }
 
@@ -786,60 +867,84 @@ function triangle(context,x1,y1,x2,y2,x3,y3) {
   context.lineTo(x2,y2);
   context.lineTo(x3,y3);
   context.closePath();
+  context.fill();
   context.stroke();
   context.restore();
 }
 
-function draw_terrapin(context) {
-
+function draw_terrapin(context,ship) {
+  context.save();
+  //context.strokeStyle="rgba(0,0,"+255+",1)";
+  context.fillStyle='gray';
   ellipse(context,0,0,15,10);
+  context.fillStyle='black'; //canopy
   ellipse(context,9,0,3,2);
-  ellipse(context,-3,0,4,4);
-  ellipse(context,-3,0,6,6);
 
+  context.fillStyle='#8A0808'; // red dish
+  ellipse(context,-3,0,6,6);
+  context.fillStyle='gray';
+  ellipse(context,-3,0,4,4);
+
+  context.fillStyle='black';
   rectangle(context,15,-1.5,3,3);
 
+  context.fillStyle='#424242'; // engin colors
   rectangle(context,6,-12,4,4);
   rectangle(context,6,8,4,4);
 
   rectangle(context,-13,-12,5,5);
   rectangle(context,-13,7,5,5);
 
-  var trail_size = 3;
-  var t = Math.round(hero.throttle*trail_size);
-  var t_right = t;
+  // Do engin trails
+  var trail_size = 4;
+  var trail_color = "0,51,102";
+  var min_alpha = 0.1;
+  var max_alpha = 0.5;
+  var t = Math.round(ship.throttle*trail_size);
 
-  context.save();
-  context.globalAlpha = 0.15;
-  if(hero.current_turn==1) t_right=Math.floor(t_right/2);
+  var t_right = t;
+  //engine 1
+  if(ship.current_turn==1) t_right=Math.floor(t_right/2);
   for(var i=0; i < t_right; i++) {
+    //context.strokeStyle="rgba(0,0,"+Math.floor(255*i/t_right)+")";
+    var alpha = (1-i/t_right)*(max_alpha-min_alpha)+min_alpha
+    context.strokeStyle="rgba("+trail_color+","+alpha+")";
     rectangle(context,-17-(trail_size*i),-12,1,4);
   }
-  if(hero.current_turn==1) rectangle(context,6,14,3,1);
+
+  // thurster 1
+  context.strokeStyle="rgba("+trail_color+","+max_alpha+")";
+  if(ship.current_turn==1) rectangle(context,6,14,3,1);
+
   var t_left = t;
-  if(hero.current_turn==-1) t_left=Math.floor(t_left/2);
+  // engine 2
+  if(ship.current_turn==-1) t_left=Math.floor(t_left/2);
   for(var i=0; i < t_left; i++) {
+    var alpha = (1-i/t_left)*(max_alpha-min_alpha)+min_alpha
+    context.strokeStyle="rgba("+trail_color+","+alpha+")";
     rectangle(context,-17-(trail_size*i),7,1,4);
   }
-  if(hero.current_turn==-1) rectangle(context,6,-16,3,1);
+  //thruster 2
+  context.strokeStyle="rgba("+trail_color+","+max_alpha+")";
+  if(ship.current_turn==-1) rectangle(context,6,-16,3,1);
   context.restore();
-  //context.restore();
 }
 
 function ellipse(context,cx,cy,rx,ry) {
-  context.save();
   context.beginPath();
+  context.save();
   context.translate(cx-rx,cy-ry);
   context.scale(rx,ry);
   context.arc(1,1,1,0,2*Math.PI,false);
   context.restore();
+  context.fill();
   context.stroke();
 }
 
 function rectangle(context,cx,cy,wd,ht) {
-  context.save();
+  context.beginPath();
   context.rect(cx,cy,wd,ht);
-  context.restore();
+  context.fill();
   context.stroke();
 }
 
@@ -856,13 +961,13 @@ function drop_shadow(context,msg,font_size,x,y) {
 }
 
 // Listener callback for mouse click
-function fire_player_weapon(canvas,e) {
-  var context = canvas.getContext("2d")
-  for(var i=0; i < hero.hard_points.length; i++) {
-    b = new PlayerProjectile(hero.x,hero.y,hero.theta,hero.hard_points[i])
-    player_projectiles.push(b)
-  }
-}
+//function fire_player_weapon(canvas,e) {
+//  var context = canvas.getContext("2d")
+//  for(var i=0; i < hero.hard_points.length; i++) {
+//    b = new PlayerProjectile(hero.x,hero.y,hero.theta,hero.hard_points[i])
+//    player_projectiles.push(b)
+//  }
+//}
 
 // Listener for mouse move
 function get_mouse_position(canvas,e) {
