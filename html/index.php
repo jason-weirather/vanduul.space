@@ -4,7 +4,7 @@
   <link rel="stylesheet" href="css/main.css" />
   <link rel="stylesheet" href="css/game.css" />
   <link rel="shortcut icon" type="image/png" href="img/miniduul.png" />
-  <?php include('php/game.php');?>
+  <script src="js/game.js"></script>
 
   <title>Vanduul Space</title>
 </head>
