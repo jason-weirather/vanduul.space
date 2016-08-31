@@ -1,10 +1,13 @@
 // overal globals
+
 var verbose = true;
 var finished = false;
 var mouseState = "up";
 var is_paused = false;
+var global_counter = 0;
 
 //animate destruction
+//holds ships that are currently being destroyed
 var destroyed_ships = [];
 
 var get_input = [];
@@ -29,312 +32,25 @@ function GalacticState() {
 }
 
 var stop_counter = 0;
-function check_scan(canvas,context) {
-  if(hero.Velocity()<0.01 && mouseState=='up') stop_counter+=1;
-  else {
-    stop_counter = 0;
-    return;
-  }
-  if(stop_counter < 60*1) return;
-  // find enemies
-  var thetas = []
-  for(var i =0; i < enemies.length; i++) {
-    var e = enemies[i];
-    thetas.push(Math.atan2(e.cartesian_y,e.cartesian_x));
-  }
-  // Sweeping scan
-  var d = Math.max(canvas.height,canvas.width);
-  context.save();
-  context.globalAlpha=0.3;
-  var scan_theta = stop_counter*0.005;
-  var delta = 0.05;
-  context.rotate(-scan_theta-Math.PI/2);
-  use_color = check_color(scan_theta,thetas,delta);
-  context.strokeStyle= use_color;
-  context.beginPath();
-  context.moveTo(0,100);
-  context.lineTo(0,d);
-  context.lineWidth=10;
-  context.stroke();
-  //context.strokeStyle= 'black';
-  context.beginPath();
-  context.arc(0,0,100,0,2*Math.PI,false);
-  context.arc(0,0,90,0,2*Math.PI,true);
-  context.fillStyle= use_color;
-  context.fill();
-  context.restore();
+// Used for scanning which is in Scan.js
 
-  // Print a scanning message
-  context.save()
-  context.textAlign="center";
-  var msg = "Scanning";
-  var scan_msgs = ["......",".  ....  .","..  ..  ..","...    ...","..  ..  ..",".  ....  ."];
-  drop_shadow(context,msg,20,0,-50);
-  scale_counter = Math.floor(stop_counter/60);
-  drop_shadow(context,scan_msgs[scale_counter%scan_msgs.length],20,0,-30);
-  context.restore();
-  if(stop_counter < 60*6) return;
-  // Now look for planet
-  var min_range = 100;
-  var best_p = null;
-  for(var i=0; i < planets.length; i++) {
-    var dx =planets[i].galactic_x - hero.galactic_x
-    var dy = planets[i].galactic_y - hero.galactic_y
-    var d = Math.sqrt(dx*dx+dy*dy);
-    d -=planets[i].r;
-    if(d > min_range) continue;
-    min_range = d
-    best_p = i
-  }
-  if(best_p) {
-    // We have a planet
-    if(planets[best_p].name=='') {
-      get_input = ['planet name',best_p];
-      is_paused = true;
-      return;
-    }
-  }
-}
-
-function check_color(scan_theta,thetas,delta) {
-  for(var i = 0; i < thetas.length; i++) {
-    d = Math.sqrt(2-2*Math.cos(scan_theta-thetas[i]));
-    if(d < delta) return 'red';
-  }
-  return 'blue';
-}
-
-// accuracy: control spread of theta upon fire
-// speed: how fast projectile travels
-// damage:
-// range: pixels projectile can travel before disappearing
-//{accuracy:0.95,speed:4,size:2,damage:3,range:800}
-
-function HardPoint() {
-  this.x = 0;
-  this.y = 0;
-  this.theta = 0;
-  this.accuracy=0.95;
-  this.speed=4;
-  this.size=2;
-  this.damage=30;
-  this.energy = 5; // energy cost;
-  this.range=800;
-  this.rof=5; //frames per shot
-  this.trigger_frame=0; //count frames of trigger depress
-}
 
 var enemies = []
+// Storing all enemies
 
-//Hold information about center sprite
-//x: current x position
-//y: current y position
-//theta: current angle
-//throttle: thrust [0,1]
-//min_throttle: how close to ship before setting throttle to zero
-//max_throttle: how far from ship before setting throttle to 1
-//max_dist: maximum distance from the origin as fraction of the max_r
-//turn_rate: how many radians you are allowed to turn per tick
 var hero = new Ship();
+// Storing player ship
 
-function Ship() {
-  this.type = 'terrapin';
-  this.damage_frames = 0; // keep track of the number of frames in the damage state
-  this.cartesian_x=0;
-  this.cartesian_y=0;
-  this.galactic_x=0;
-  this.galactic_y=0;
-  this.theta=0; // angle of sprite
-  this.throttle=0;
-
-  this.engine_power=3;
-  this.turn_rate=0.03;
-  this.current_turn=0; // State direction -1 left 0 nothing 1 right
-  this.acceleration=0.8;
-  this.hard_points = []
-  this.r = 10;
-  this.health = 100;
-  this.max_health = 100;
-  this.energy = 100;
-  this.max_energy = 100;
-  this.energy_recharge = 0.05;
-  this.trigger = 'up';
-
-
-  //Player properties
-  this.min_throttle=0.2; //deadzone low
-  this.max_throttle=0.9; //deadzone high
-  this.max_dist=0.2;     //max distance can traverse from origin (for a player)
-
-  var self = this;
-  //Functions of Ship
-  this.Velocity = function() {
-     return self.engine_power*self.throttle;
-  }
-  this.OriginTheta = function() { // Angle offset from center of map
-    return Math.atan2(self.cartesian_y,self.cartesian_x);
-  }
-  this.PressTrigger=function(){
-    self.trigger = "down";
-  }
-  this.ReleaseTrigger=function(){
-    self.trigger = "up";
-    for(var i = 0; i < self.hard_points.length; i++) {
-      self.hard_points[i].trigger_frames = 0;
-    }
-  }
-  // Set a new coordinate here (from center of screen as origin)
-  this.SetCartesian=function(x,y){
-    self.cartesian_x = x;
-    self.cartesian_y = y;
-    var gc = galactic_coordinates.ToGalactic(x,y);
-    self.galactic_x = gc.x;
-    self.galactic_y = gc.y;
-  }
-  // Set a new coordinate here (from center of galaxy as origin)
-  this.SetGalactic=function(x,y){
-    self.galactic_x = x;
-    self.galactic_y = y;
-    var cc = galactic_coordinates.ToCartesian(x,y);
-    self.cartesian_x = cc.x;
-    self.cartesian_y = cc.y;
-  }
-
-  // take a new theta you want to face and a turn rate you can get there
-  // this will set a new theta based on the request
-  // will also adjust current_turn
-  this.MakeHeadingChange = function(theta_goal,turn_rate) {
-    if(turn_rate > self.turn_rate) turn_rate = self.turn_rate; // enforce max turn rate
-    // Get theta back in some normal unit circle coordinates
-    if(self.theta > 2*Math.PI) self.theta -= 2*Math.PI;
-    if(self.theta <= -2*Math.PI) self.theta += 2*Math.PI;
-    // can get our turning direction
-    hero.current_turn = 0;
-    if(Math.abs(self.theta-theta_goal) < turn_rate) {
-      self.theta = theta_goal;
-      self.current_turn = 0; // we arent turning because we are there
-    } else if(self.theta >= Math.PI/2 && theta_goal <= -Math.PI/2) {
-      self.theta += turn_rate;
-      self.current_turn = 1;
-    } else if(self.theta <= -Math.PI/2 && theta_goal >= Math.PI/2) {
-      self.theta -= turn_rate;
-      self.current_turn = -1;
-    } else if(hero.theta > theta_goal) {
-      self.theta -= turn_rate;
-      self.current_turn = -1;
-    } else {
-      self.theta += turn_rate;
-      self.current_turn = 1;
-    }
-  }
-  // Move to this coordinate with acceleration being the maximum movement allowed 
-  this.MakeGalacticPositionChange=function(x_goal,y_goal,acceleration,canvas,collision_list){
-    cc = galactic_coordinates.ToCartesian(x_goal,y_goal);
-    self.MakeCartesianPositionChange(cc.x,cc.y,acceleration,canvas,collision_list);
-  }
-  // Move to this coordinate with acceleration being the maximum movement allowed 
-  // collision list is a list of arrayed objects to check for collisions
-  this.MakeCartesianPositionChange=function(x_goal,y_goal,acceleration,canvas,collision_list){
-    var changed = true;
-    var oldx = self.cartesian_x;
-    var oldy = self.cartesian_y;
-    var xnext = self.cartesian_x  //our current value
-    var ynext = self.cartesian_y  //our current value
-    if(acceleration > self.acceleration) acceleration = self.acceleration; // enforce limit
-    var d = Math.sqrt((x_goal-self.cartesian_x)*(x_goal-self.cartesian_x)+(y_goal-self.cartesian_y)*(y_goal-self.cartesian_y))
-    if(d < self.acceleration) {
-      // we can update distance to current
-      xnext = x_goal
-      ynext = y_goal
-    } else {
-      var temp_theta = Math.atan2(self.cartesian_y-y_goal,self.cartesian_x-x_goal)
-      var delta_y = Math.sin(temp_theta)*self.acceleration
-      var delta_x = Math.cos(temp_theta)*self.acceleration
-      xnext = self.cartesian_x-delta_x
-      ynext = self.cartesian_y-delta_y
-    }
-
-    // Check the values
-    //gc = galactic_coordinates.ToGalactic(xnext,ynext);
-    //print(collision_list.length);
-    var collided = false;
-    for(var i =0; i < collision_list.length; i++) {
-      if(!(check_no_collisions(canvas,self,collision_list[i]))) {
-        collided = true;
-        break;
-      }
-    }
-    if(!collided) {
-      // safe to update
-      self.SetCartesian(xnext,ynext);
-    } else {
-      print('collided')
-      self.throttle = -0.3;
-      self.theta -=0.2;
-      self.SetCartesian(oldx,oldy);
-      //print('collision')
-    }
-  }
-  // Do a normal draw
-  this.Draw=function(context){
-    draw_ship(self,context);
-  }
-}
-
-function draw_ship(ship,context) {
-  if(ship.type=='terrapin') {
-    draw_terrapin(context,ship);
-  } else if  (ship.type=='scythe') {
-    draw_scythe(context,ship);
-  }
-}
-
-
-function RandomGenerator(v1,v2) {
-  this.seed1 = v1
-  this.seed2 = v2
-  this.seed3 = 1000;
-  var self = this;
-  this.random = function() {
-    self.seed3 += 1;
-    var x = Math.sin(self.seed3)*100;
-    x = x - Math.floor(x);
-    num2 = Math.floor(10+100*x*self.seed1+self.seed3)
-
-    x = Math.sin(num2)*100;
-    x = x - Math.floor(x);
-
-    num3 = Math.floor(10+100*x*self.seed2+self.seed3)
-
-    x = Math.sin(num3)*100;
-    x = x - Math.floor(x);
-
-    return x;
-  }
-}
 
 var planets = []
+// Functions defined in ProceduralUniverse
 
 var proceedural_blocks = {}
+// These are set in ProceduralUniverse
 
-function Planet() {
-  this.galactic_x = 0;
-  this.galactic_y = 0;
-  this.color = "#000000";
-  this.text_color = "#FFFFFF";
-  this.r = 0;
-  this.name = '';
-  this.id = '';
-  var self = this;
-  this.GetBlock = function(blocksize) {
-    var xb = Math.floor(self.galactic_x/blocksize);
-    var yb = Math.floor(self.galactic_y/blocksize);
-    return {xblock:xb,yblock:yb};
-  }
-}
 
+// Important class/global used to go in between universe and on-screen cartesian coordinates.
 var galactic_coordinates = new GalacticCoordinates();
-
 function GalacticCoordinates() {
   this.x_origin = 0;
   this.y_origin = 0;
@@ -351,7 +67,7 @@ function GalacticCoordinates() {
 
 var player_projectiles = []
 //one player bullet
-function PlayerProjectile(xinit,yinit,theta,weapon) {
+function PlayerProjectile(xinit,yinit,theta,weapon,is_friendly) {
   this.x = xinit;
   this.y = yinit;
   var weapon_r = Math.sqrt(weapon.x*weapon.x+weapon.y*weapon.y)
@@ -362,6 +78,7 @@ function PlayerProjectile(xinit,yinit,theta,weapon) {
   this.weapon = weapon;
   this.r = this.weapon.size;
   this.traversed = 0;
+  this.friendly = is_friendly;
 }
 
 
@@ -401,10 +118,6 @@ function init() {
     //update global
     mousePos = get_mouse_position(canvas,e);
   });
-  //canvas.addEventListener('click',function(e) {
-  //  //update global
-  //  fire_player_weapon(canvas,e);
-  //});
   document.onmousedown = function(e) {
     //update global
     mouseState = 'down';
@@ -432,6 +145,8 @@ function init() {
 }
 
 function mainLoop() {
+  global_counter += 1;
+  if(global_counter > 16000) global_counter = 0;
   if(!is_paused && !finished)  update_canvas();
   if(is_paused && get_input.length > 0) {
     process_input();
@@ -571,7 +286,15 @@ function update_canvas() {
 
   update_hero_position(canvas);
   update_galactic_coordinates();
-  update_bodies();
+  if(global_counter%3==0) {
+    spawn_enemies(canvas);
+  }
+  if(global_counter%3==1) {
+    update_bodies();
+  }
+  if(global_counter%3==2) {
+    update_projectiles();
+  }
   update_enemies(canvas);
   draw_bodies(canvas,context);
   draw_destroyed(canvas,context);
@@ -584,12 +307,32 @@ function update_canvas() {
   draw_hud(canvas,context);
 }
 
+function update_projectiles() {
+  // check the projectiles against the planets
+  var buffer = []
+  for(var i = 0; i < player_projectiles.length; i++) {
+    var no_collision = true;
+    var gc = galactic_coordinates.ToGalactic(player_projectiles[i].x,player_projectiles[i].y);
+    for(j = 0; j < planets.length; j++) {
+      var dx = planets[j].galactic_x-gc.x
+      var dy = planets[j].galactic_y-gc.y
+      if(point_distance(planets[j].galactic_x,planets[j].galactic_y,gc.x,gc.y)-planets[j].r-player_projectiles[i].r>0) continue;
+      no_collision = false;
+      break;
+    }
+    if(no_collision) buffer.push(player_projectiles[i]);
+  }
+  player_projectiles = buffer;
+}
+
 function draw_destroyed(canvas,context) {
   max_time = 180;
   //print(destroyed_ships.length);
   buffer = []
   for(i=0;i<destroyed_ships.length;i++) {
     var e = destroyed_ships[i];
+    // turn off the scan output
+    e.scanned = false;
     // do update their galactic coordinates
     cc = galactic_coordinates.ToCartesian(e.galactic_x,e.galactic_y);
     // do set thier throttle to zero
@@ -632,7 +375,7 @@ function process_trigger(ship) {
           ship.energy-=w.energy;
           //var context = canvas.getContext("2d")
           //for(var i=0; i < hero.hard_points.length; i++) {
-          b = new PlayerProjectile(ship.cartesian_x,ship.cartesian_y,ship.theta,w)
+          b = new PlayerProjectile(ship.cartesian_x,ship.cartesian_y,ship.theta,w,ship.friendly)
           player_projectiles.push(b)
         }
         w.trigger_frame += 1;
@@ -648,16 +391,15 @@ function draw_enemies(canvas,context) {
     var c = canvas_coord(e.cartesian_x,e.cartesian_y)
     context.translate(c.x,c.y);
     context.rotate(-e.theta);
-    enemies[i].Draw(context);
+    e.Draw(context);
     context.restore();
   }
 }
 
-function update_enemies(canvas) {
+function spawn_enemies(canvas) {
   // put enemies into play
-  var max_enemies = 10;
+  var max_enemies = 30;
   while(enemies.length < max_enemies) {
-    var e = new Ship();
     rnx = Math.random();
     cx = (rnx*canvas.width)- canvas.width/2;
     if(rnx > 0.5) cx+=canvas.width/2+100;
@@ -668,9 +410,33 @@ function update_enemies(canvas) {
     else cy-=canvas.width/2-100;
     // use galactic coordinates for the enmies
     gc = galactic_coordinates.ToGalactic(cx,cy);
+    // make sure this is not a planetary position
+    var too_close = false;
+    for(var i = 0; i < planets.length; i++) {
+      var p = planets[i];
+      if(point_distance(p.galactic_x,p.galactic_y,gc.x,gc.y)<p.r+100) {
+        too_close = true;
+        break;
+      }
+    }
+    if(too_close) break;
+    var e = new Ship();
     e.SetGalactic(gc.x,gc.y);
     //e.x = gc.x;
     //e.y = gc.y;
+
+    //scanner gameplay
+    var min_degrees = 200;
+    var max_degrees = 300;
+    var rangle =(Math.random()*(max_degrees-min_degrees)+min_degrees)*Math.PI/180;
+    var rnum = Math.random()*2*Math.PI;
+    e.scan_distance = 250;
+    e.scan_range_start=0+rnum;
+    e.scan_range_end=rangle+rnum;
+    e.scan_range_start %= 2*Math.PI;
+    e.scan_range_end %= 2*Math.PI;
+
+
     e.min_throttle = 0;
     e.max_throttle = 1;
     e.type = 'scythe'
@@ -682,13 +448,14 @@ function update_enemies(canvas) {
     e.turn_rate = 0.005;
     e.acceleration = 0.5;
     e.hard_points = []
+    e.freindly = false; // tell ship and projectile is not friendly
     var h1 = new HardPoint();
     h1.x = 20;
     h1.y = 5;
     h1.size = 5;
     h1.rof = 140;
     h1.damage = 200;
-    h1.range = 450;
+    h1.range = 4050;
     //var h2 = new HardPoint();
     //h1.x = 40;
      //h1.y = 30;
@@ -715,6 +482,9 @@ function update_enemies(canvas) {
     buffer.push(e)
   }
   enemies = buffer;
+}
+
+function update_enemies(canvas) {
   // update enemy positions
   for(var i=0; i < enemies.length; i++) {
     var e = enemies[i];
@@ -783,135 +553,6 @@ function draw_hud(canvas,context) {
 
 }
 
-function update_bodies() {
-  var gc = galactic_coordinates;
-  var blocksize = 5000;
-  var curblock_x = Math.floor(gc.x_origin/blocksize);
-  var curblock_y = Math.floor(gc.y_origin/blocksize);
-  var xblocks = [curblock_x-1,curblock_x,curblock_x+1];
-  var yblocks = [curblock_y-1,curblock_y,curblock_y+1];
-  var needed = {};
-  for(var i=0; i < xblocks.length;i++) {
-    needed[xblocks[i]] = {}
-    for(var j=0; j < yblocks.length;j++) {
-      needed[xblocks[i]][yblocks[j]] = 1;
-    }
-  }
-  for(var i=0; i < xblocks.length;i++) {
-    for(var j=0; j < yblocks.length;j++) {
-      if(xblocks[i] in proceedural_blocks) {
-        if(yblocks[j] in proceedural_blocks[xblocks[i]]) {
-          continue;
-        }
-      }
-      // if we are still here we need to populate the proceedural block
-      if(!(xblocks[i] in proceedural_blocks)) {
-        proceedural_blocks[xblocks[i]] = {};
-      } 
-      proceedural_blocks[xblocks[i]][yblocks[j]] = populate_proceedural_block(xblocks[i],yblocks[j],blocksize);
-      // if we add a block lets also cleen uncessary blocks
-      clean_unneeded(needed,blocksize);
-    }
-  }
-  // now remove blocks that are not needed
-  for(xblock in proceedural_blocks) {
-    for(yblock in proceedural_blocks[xblock]) {
-      if(xblock in needed) {
-        if(!(yblock in needed[xblock])) {
-          delete proceedural_blocks[xblock][yblock];
-        }
-      }
-    }
-    if(!(xblock in needed)) {
-      delete proceedural_blocks[xblock];
-    }
-  }
-}
-
-function clean_unneeded(needed,blocksize) {
-  buffer = [];
-  for(var i=0; i < planets.length; i++) {
-    blk = planets[i].GetBlock(blocksize);
-    //print('try clean '+blk.xblock+','+blk.yblock)
-    if(!(blk.xblock in needed)) {
-      //print('do x clean '+blk.xblock+','+blk.yblock)
-      continue;
-    }
-    if(!(blk.yblock in needed[blk.xblock])) {
-      //print('do y clean '+blk.xblock+','+blk.yblock)
-      continue;
-    }
-    buffer.push(planets[i]);
-  }
-  planets = buffer;
-}
-
-function populate_proceedural_block(xblock,yblock,blocksize) {
-  var max_planets=50;
-  var min_size = 50;
-  var max_size = 300;
-  var rg = new RandomGenerator(xblock,yblock)
-  var num_planets = Math.floor(rg.random()*max_planets);
-  
-  //print(num_planets)
-  for(var i = 0; i < num_planets; i++) {
-    var x = 0;
-    if(xblock >= 0) {
-      x = Math.floor(rg.random()*blocksize)+xblock*blocksize;
-    } else {
-      x = -1*Math.floor(rg.random()*blocksize)+(xblock+1)*blocksize;
-    }
-    var y = 0;
-    if(yblock >= 0) {
-      y = Math.floor(rg.random()*blocksize)+yblock*blocksize;
-    } else {
-      y = -1*Math.floor(rg.random()*blocksize)+(yblock+1)*blocksize;
-    }
-    var size = Math.floor(rg.random()*(max_size-min_size))+min_size;
-    p = new Planet()
-    p.galactic_x = x
-    p.galactic_y = y
-    //print(p.galactic_x+','+p.galactic_y)
-    p.r = size
-    p.id = Math.floor(rg.random()*10000000)
-    planets.push(p)
-    //print(p.galactic_x+','+p.galactic_y)
-   }
-}
-
-
-
-function draw_bodies(canvas,context) {
-  for(var i = 0; i < planets.length; i++) {
-    var p = planets[i];
-    var mapcoord = galactic_coordinates.ToCartesian(p.galactic_x,p.galactic_y)
-    var cc = canvas_coord(mapcoord.x,mapcoord.y)
-    context.save();
-    context.beginPath();
-    context.arc(cc.x,cc.y,p.r,0,2*Math.PI);
-    context.fillStyle=p.color;
-    context.fill()
-    context.stroke();
-    context.fillStyle=p.text_color;
-    context.textAlign="center";
-    context.font="20px Ariel";
-    context.fillText(planets[i].name,cc.x,cc.y)
-    context.restore();
-  }
-  var mapcoord = galactic_coordinates.ToCartesian(1000,1000)
-  var cc = canvas_coord(mapcoord.x,mapcoord.y)
-  context.save();
-  context.beginPath();
-  context.arc(cc.x,cc.y,100,0,2*Math.PI);
-  context.fillStyle='black';
-  context.fill()
-  context.stroke();
-  context.fillStyle='white';
-  context.textAlign="center";
-  context.font="20px Ariel";
-  context.fillText("Middlehorndog",cc.x,cc.y)
-  context.restore();
-}
 
 function update_galactic_coordinates() {
   var r = hero.Velocity()
@@ -987,157 +628,7 @@ function draw_hero(canvas,context) {
   context.restore();
 }
 
-function open_damage(context,ship) {
-  if(ship.damage_frames==0) return;
-  context.save();
-  var factor = 1/(1+ship.damage_frames*0.02);
-  context.globalAlpha =factor;
-  context.scale(factor,1/factor);
-  context.rotate(15*(1+ship.damage_frames*0.1)*Math.PI/180);
-  //context.translate(factor,);
-}
-function close_damage(context,ship) {
-  if(ship.damage_frames==0) return;
-  context.restore();
-}
 
-function draw_scythe(context,ship) {
-  context.save();
-  
-  open_damage(context,ship);
-  context.fillStyle="#424242";
-  rectangle(context,-15,-4,13,8);
-  rectangle(context,-3,-2,8,4);
-  context.fillStyle="#A4A4A4";
-  triangle(context,-10,3,-13,20,25,20);
-  triangle(context,-10,23,-5,30,25,23);
-  context.fillStyle="#D8D8D8";
-  rectangle(context,-10,19,35,5);
-  context.fillStyle="#A4A4A4";
-  triangle(context,-10,-3,-13,-10,10,-10);
-  context.fillStyle="#424242 ";
-  rectangle(context,-13,-13,25,4);
-  rectangle(context,6,-1,2,2);
-  context.fillStyle="#D8D8D8";
-  rectangle(context,-18,-5,10,4);
-  rectangle(context,-18,1 ,10,4);
-  close_damage(context,ship);
-
-  //add engines
-  var trail_size = 4;
-  var trail_color = "254,100,46";
-  var min_alpha = 0.1;
-  var max_alpha = 0.9;
-  var t = Math.round(ship.throttle*trail_size);
-
-  var t_right = t;
-  //engine 1
-  if(ship.current_turn==1) t_right=Math.floor(t_right/2);
-  for(var i=0; i < t_right; i++) {
-    var alpha = (1-i/t_right)*(max_alpha-min_alpha)+min_alpha
-    context.strokeStyle="rgba("+trail_color+","+alpha+")";
-    rectangle(context,-22-(trail_size*i),-6,1,3);
-  }
-
-  var t_left = t;
-  // engine 2
-  if(ship.current_turn==-1) t_left=Math.floor(t_left/2);
-  for(var i=0; i < t_left; i++) {
-    var alpha = (1-i/t_left)*(max_alpha-min_alpha)+min_alpha
-    context.strokeStyle="rgba("+trail_color+","+alpha+")";
-    rectangle(context,-22-(trail_size*i),1,1,3);
-  }
-
-  context.restore();
-}
-
-function triangle(context,x1,y1,x2,y2,x3,y3) {
-  context.save();
-  context.beginPath();
-  context.moveTo(x1,y1);
-  context.lineTo(x2,y2);
-  context.lineTo(x3,y3);
-  context.closePath();
-  context.fill();
-  context.stroke();
-  context.restore();
-}
-
-function draw_terrapin(context,ship) {
-  context.save();
-  open_damage(context,ship);
-  context.fillStyle='gray';
-  ellipse(context,0,0,15,10);
-  context.fillStyle='black'; //canopy
-  ellipse(context,9,0,3,2);
-
-  context.fillStyle='#8A0808'; // red dish
-  ellipse(context,-3,0,6,6);
-  context.fillStyle='gray';
-  ellipse(context,-3,0,4,4);
-
-  context.fillStyle='black';
-  rectangle(context,15,-1.5,3,3);
-
-  context.fillStyle='#424242'; // engin colors
-  rectangle(context,6,-12,4,4);
-  rectangle(context,6,8,4,4);
-
-  rectangle(context,-13,-12,5,5);
-  rectangle(context,-13,7,5,5);
-
-  // Do engin trails
-  var trail_size = 4;
-  var trail_color = "0,51,102";
-  var min_alpha = 0.1;
-  var max_alpha = 0.5;
-  var t = Math.round(ship.throttle*trail_size);
-
-  var t_right = t;
-  //engine 1
-  if(ship.current_turn==1) t_right=Math.floor(t_right/2);
-  for(var i=0; i < t_right; i++) {
-    var alpha = (1-i/t_right)*(max_alpha-min_alpha)+min_alpha
-    context.strokeStyle="rgba("+trail_color+","+alpha+")";
-    rectangle(context,-17-(trail_size*i),-12,1,4);
-  }
-
-  // thurster 1
-  context.strokeStyle="rgba("+trail_color+","+max_alpha+")";
-  if(ship.current_turn==1) rectangle(context,6,14,3,1);
-
-  var t_left = t;
-  // engine 2
-  if(ship.current_turn==-1) t_left=Math.floor(t_left/2);
-  for(var i=0; i < t_left; i++) {
-    var alpha = (1-i/t_left)*(max_alpha-min_alpha)+min_alpha
-    context.strokeStyle="rgba("+trail_color+","+alpha+")";
-    rectangle(context,-17-(trail_size*i),7,1,4);
-  }
-  //thruster 2
-  context.strokeStyle="rgba("+trail_color+","+max_alpha+")";
-  if(ship.current_turn==-1) rectangle(context,6,-16,3,1);
-  close_damage(context,ship);
-  context.restore();
-}
-
-function ellipse(context,cx,cy,rx,ry) {
-  context.beginPath();
-  context.save();
-  context.translate(cx-rx,cy-ry);
-  context.scale(rx,ry);
-  context.arc(1,1,1,0,2*Math.PI,false);
-  context.restore();
-  context.fill();
-  context.stroke();
-}
-
-function rectangle(context,cx,cy,wd,ht) {
-  context.beginPath();
-  context.rect(cx,cy,wd,ht);
-  context.fill();
-  context.stroke();
-}
 
 function drop_shadow(context,msg,font_size,x,y) {
   context.save();
@@ -1200,6 +691,10 @@ function toggle_pause() {
   } else {
     stretch_canvas();
   }
+}
+
+function point_distance(x1,y1,x2,y2) {
+  return Math.sqrt((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2));
 }
 
 // Debugging print function.
