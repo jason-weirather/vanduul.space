@@ -295,7 +295,7 @@ function update_canvas() {
   if(global_counter%3==2) {
     update_projectiles();
   }
-  update_enemies(canvas);
+  update_enemies(canvas,context);
   draw_bodies(canvas,context);
   draw_destroyed(canvas,context);
   draw_particles(canvas,context);
@@ -398,7 +398,7 @@ function draw_enemies(canvas,context) {
 
 function spawn_enemies(canvas) {
   // put enemies into play
-  var max_enemies = 30;
+  var max_enemies = 8;
   while(enemies.length < max_enemies) {
     rnx = Math.random();
     cx = (rnx*canvas.width)- canvas.width/2;
@@ -441,16 +441,16 @@ function spawn_enemies(canvas) {
     e.max_throttle = 1;
     e.type = 'scythe'
     e.throttle = 0.5;
-    e.trigger = 'down';
+    e.trigger = 'up';
     e.engine_power = 3;
     e.r = 10;
     e.theta = 1;
-    e.turn_rate = 0.005;
+    e.turn_rate = 0.1;
     e.acceleration = 0.5;
     e.hard_points = []
     e.freindly = false; // tell ship and projectile is not friendly
     var h1 = new HardPoint();
-    h1.x = 20;
+    h1.x = 25;
     h1.y = 5;
     h1.size = 5;
     h1.rof = 140;
@@ -484,23 +484,47 @@ function spawn_enemies(canvas) {
   enemies = buffer;
 }
 
-function update_enemies(canvas) {
+function update_enemies(canvas,context) {
   // update enemy positions
   for(var i=0; i < enemies.length; i++) {
     var e = enemies[i];
-    e.theta+=e.turn_rate;
-    //print(e.Velocity())
-    if(e.throttle < 0.1) {
-      e.throttle = 0.6;
+    // make sure theta is positive and isn't growing
+    e.theta += 10*Math.PI;
+    e.theta %= 2*Math.PI;
+
+    // check sensors
+    var theta = 2*Math.PI+Math.atan2(e.cartesian_y-hero.cartesian_y,e.cartesian_x-hero.cartesian_x);
+    var dist = point_distance(e.cartesian_x,e.cartesian_y,hero.cartesian_x,hero.cartesian_y);
+    var atheta = -1*(theta-e.theta)+Math.PI ;
+    atheta += 4*Math.PI;
+    atheta %= 2*Math.PI;
+    var inrange = false;
+    if(dist < e.scan_distance) {
+      if(atheta > e.scan_range_start || atheta < e.scan_range_end && e.scan_range_end < e.scan_range_start) {
+        inrange = true;
+      } else if (atheta > e.scan_range_start && atheta < e.scan_range_end) {
+        inrange = true;
+      }
     }
-    newx = e.Velocity()*Math.cos(e.theta);
-    newy = e.Velocity()*Math.sin(e.theta);
-    newx+=e.galactic_x;
-    newy+=e.galactic_y;
-    e.MakeGalacticPositionChange(newx,newy,e.acceleration,canvas,[planets]);
-    e.SetGalactic(newx,newy);
-    e.x+=newx
-    e.y+=newy
+    if(inrange) {
+      //cc1 = canvas_coord(e.cartesian_x,e.cartesian_y);
+      //cc2 = canvas_coord(hero.cartesian_x,hero.cartesian_y);
+      //context.beginPath();
+      //context.moveTo(cc1.x,cc1.y);
+      //context.lineTo(cc2.x,cc2.y);
+      //if(inrange) context.strokeStyle="red";
+      //else context.strokeStyle="black";
+      //context.stroke();
+      //context.font="30px Arial";
+      //context.fillText(atheta,0,40);
+      //print(e.scan_range_start+','+e.scan_range_end);
+      e.alerted = true;
+    }
+    if(e.alerted) {
+      fly_alert(canvas,e);
+    } else {
+      fly_patrol(canvas,e);
+    }
   }
   // check for projectile hits
   //for(var i = 0; i < player_projectiles.length; i++) {
@@ -522,6 +546,39 @@ function update_enemies(canvas) {
     player_projectiles = buffer;
   }
   enemies = enemy_buffer;
+
+}
+function fly_patrol(canvas,e) {
+    e.theta+=e.turn_rate*0.05;
+    //print(e.Velocity())
+    if(e.throttle < 0.1) {
+      e.throttle = 0.6;
+    }
+    newx = e.Velocity()*Math.cos(e.theta);
+    newy = e.Velocity()*Math.sin(e.theta);
+    newx+=e.galactic_x;
+    newy+=e.galactic_y;
+    e.MakeGalacticPositionChange(newx,newy,e.acceleration,canvas,[planets]);
+    e.SetGalactic(newx,newy);
+    e.x+=newx
+    e.y+=newy
+}
+
+function fly_alert(canvas,e) {
+    //var goal_theta = 0;
+    //e.MakeHeadingChange(goal_theta,0.05)
+    //e.theta = 
+    e.throttle=9;
+    newx = e.Velocity()*Math.cos(e.theta);
+    newy = e.Velocity()*Math.sin(e.theta);
+    newx+=e.galactic_x;
+    newy+=e.galactic_y;
+    e.MakeGalacticPositionChange(hero.galactic_x,hero.galactic_y,e.acceleration,canvas,[planets]);
+    //e.MakeGalacticPositionChange(newx,newy,e.acceleration,canvas,[planets]);
+    //e.MakeCartesianPositionChange(hero.cartesian_x,hero.cartesian_y,e.acceleration,canvas,[planets]);
+    e.SetGalactic(newx,newy);
+    e.x+=newx
+    e.y+=newy
 }
 
 function draw_hud(canvas,context) {
@@ -550,6 +607,16 @@ function draw_hud(canvas,context) {
   //display help
   msg = 'Press SPACE for PAUSE.  Left click to FIRE.'
   drop_shadow(context,msg,16,-1*canvas.width/2+30,canvas.height/2-30)
+
+  //display credit
+  context.save();
+  context.textAlign="end";
+  msg = 'This is a free fan-made game by Vacation.';
+  drop_shadow(context,msg,16,canvas.width/2-30,canvas.height/2-60)
+  msg = 'The background image is a modified Cloud Imperium Games image.';
+  drop_shadow(context,msg,16,canvas.width/2-30,canvas.height/2-30)
+  
+  context.restore();
 
 }
 
