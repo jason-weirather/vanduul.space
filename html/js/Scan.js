@@ -60,7 +60,7 @@ function check_scan(canvas,context) {
     // draw on ship
     //context.save();
     rsize = 60;
-    cc = canvas_coord(e.cartesian_x,e.cartesian_y);
+    cc = e.coord.GetCanvas();
     context.beginPath();
     context.rect(cc.x-rsize/2,cc.y-rsize/2,rsize,rsize);
     context.stroke();

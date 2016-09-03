@@ -11,10 +11,7 @@
 function Ship() {
   this.type = 'terrapin';
   this.damage_frames = 0; // keep track of the number of frames in the damage state
-  this.cartesian_x=0;
-  this.cartesian_y=0;
-  this.galactic_x=0;
-  this.galactic_y=0;
+  this.coord = new Coordinates();
   this.theta=0; // angle of sprite
   this.throttle=0;
 
@@ -51,8 +48,8 @@ function Ship() {
   this.Velocity = function() {
      return self.engine_power*self.throttle;
   }
-  this.OriginTheta = function() { // Angle offset from center of map
-    return Math.atan2(self.cartesian_y,self.cartesian_x);
+  this.Theta = function() { // Angle offset from center of map
+    return Math.atan2(self.coord.GetCartesian().y,self.coord.GetCartesian().x);
   }
   this.PressTrigger=function(){
     self.trigger = "down";
@@ -63,21 +60,9 @@ function Ship() {
       self.hard_points[i].trigger_frames = 0;
     }
   }
-  // Set a new coordinate here (from center of screen as origin)
-  this.SetCartesian=function(x,y){
-    self.cartesian_x = x;
-    self.cartesian_y = y;
-    var gc = galactic_coordinates.ToGalactic(x,y);
-    self.galactic_x = gc.x;
-    self.galactic_y = gc.y;
-  }
-  // Set a new coordinate here (from center of galaxy as origin)
-  this.SetGalactic=function(x,y){
-    self.galactic_x = x;
-    self.galactic_y = y;
-    var cc = galactic_coordinates.ToCartesian(x,y);
-    self.cartesian_x = cc.x;
-    self.cartesian_y = cc.y;
+  // Set a new coordinate here
+  this.SetCoordinates=function(coord){
+    self.coord = coord;
   }
 
   // take a new theta you want to face and a turn rate you can get there
@@ -108,30 +93,23 @@ function Ship() {
     }
   }
   // Move to this coordinate with acceleration being the maximum movement allowed 
-  this.MakeGalacticPositionChange=function(x_goal,y_goal,acceleration,canvas,collision_list){
-    cc = galactic_coordinates.ToCartesian(x_goal,y_goal);
-    self.MakeCartesianPositionChange(cc.x,cc.y,acceleration,canvas,collision_list);
-  }
-  // Move to this coordinate with acceleration being the maximum movement allowed 
   // collision list is a list of arrayed objects to check for collisions
-  this.MakeCartesianPositionChange=function(x_goal,y_goal,acceleration,canvas,collision_list){
+  this.MakePositionChange=function(coord_goal,acceleration,canvas,collision_list){
     var changed = true;
-    var oldx = self.cartesian_x;
-    var oldy = self.cartesian_y;
-    var xnext = self.cartesian_x  //our current value
-    var ynext = self.cartesian_y  //our current value
+    var old_coord = self.coord.copy();
+    var next_coord = self.coord.copy(); // set to our current coordinate
     if(acceleration > self.acceleration) acceleration = self.acceleration; // enforce limit
-    var d = Math.sqrt((x_goal-self.cartesian_x)*(x_goal-self.cartesian_x)+(y_goal-self.cartesian_y)*(y_goal-self.cartesian_y))
+    var d = Math.sqrt((coord_goal.GetCartesian().x-self.coord.GetCartesian().x)*(coord_goal.GetCartesian().x-self.coord.GetCartesian().x)+(coord_goal.GetCartesian().y-self.coord.GetCartesian().y)*(coord_goal.GetCartesian().y-self.coord.GetCartesian().y))
     if(d < self.acceleration) {
       // we can update distance to current
-      xnext = x_goal
-      ynext = y_goal
+      next_coord = coord_goal;
     } else {
-      var temp_theta = Math.atan2(self.cartesian_y-y_goal,self.cartesian_x-x_goal)
+      var temp_theta = Math.atan2(self.coord.GetCartesian().y-coord_goal.GetCartesian().y,self.coord.GetCartesian().x-coord_goal.GetCartesian().x)
       var delta_y = Math.sin(temp_theta)*self.acceleration
       var delta_x = Math.cos(temp_theta)*self.acceleration
-      xnext = self.cartesian_x-delta_x
-      ynext = self.cartesian_y-delta_y
+      var xnext = self.coord.GetCartesian().x-delta_x
+      var ynext = self.coord.GetCartesian().y-delta_y
+      next_coord.SetCartesian(xnext,ynext);
     }
 
     // Check the values
@@ -146,12 +124,12 @@ function Ship() {
     }
     if(!collided) {
       // safe to update
-      self.SetCartesian(xnext,ynext);
+      self.coord = next_coord
     } else {
       //print('collided')
       self.throttle = -0.3;
       self.theta -=0.2;
-      self.SetCartesian(oldx,oldy);
+      self.coord = old_coord
       //print('collision')
     }
   }
@@ -167,7 +145,8 @@ function draw_ship(ship,context) {
   } else if  (ship.type=='scythe') {
     draw_scythe(context,ship);
   }
-  var cc = canvas_coord(ship.cartesian_x,ship.cartesian_y);
+  //var cc = canvas_coord(ship.cartesian_x,ship.cartesian_y);
+  var cc = ship.coord.GetCanvas();
   //scan gameplay
   if(ship.scanned) {
     var scanrange=ship.scan_distance;
@@ -215,11 +194,11 @@ function HardPoint() {
   this.y = 0;
   this.theta = 0;
   this.accuracy=0.95;
-  this.speed=4;
+  this.speed=6;
   this.size=2;
   this.damage=30;
-  this.energy = 5; // energy cost;
-  this.range=800;
+  this.energy = 2; // energy cost;
+  this.range=400;
   this.rof=5; //frames per shot
   this.trigger_frame=0; //count frames of trigger depress
 }

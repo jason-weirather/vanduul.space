@@ -1,6 +1,5 @@
 function Planet() {
-  this.galactic_x = 0;
-  this.galactic_y = 0;
+  this.coord = new Coordinates();
   this.color = "#000000";
   this.text_color = "#FFFFFF";
   this.r = 0;
@@ -8,18 +7,19 @@ function Planet() {
   this.id = '';
   var self = this;
   this.GetBlock = function(blocksize) {
-    var xb = Math.floor(self.galactic_x/blocksize);
-    var yb = Math.floor(self.galactic_y/blocksize);
+    var xb = Math.floor(self.coord.GetGalactic().x/blocksize);
+    var yb = Math.floor(self.coord.GetGalactic().y/blocksize);
     return {xblock:xb,yblock:yb};
   }
 }
 
 
 function update_bodies() {
-  var gc = galactic_coordinates;
+  var gc = galactic_origin;
+  //print(galactic_origin.galactic_x);
   var blocksize = 5000;
-  var curblock_x = Math.floor(gc.x_origin/blocksize);
-  var curblock_y = Math.floor(gc.y_origin/blocksize);
+  var curblock_x = Math.floor(gc.galactic_x/blocksize);
+  var curblock_y = Math.floor(gc.galactic_y/blocksize);
   var xblocks = [curblock_x-1,curblock_x,curblock_x+1];
   var yblocks = [curblock_y-1,curblock_y,curblock_y+1];
   var needed = {};
@@ -46,8 +46,10 @@ function update_bodies() {
     }
   }
   // now remove blocks that are not needed
+  var z = 0;
   for(xblock in proceedural_blocks) {
     for(yblock in proceedural_blocks[xblock]) {
+      z += 1;
       if(xblock in needed) {
         if(!(yblock in needed[xblock])) {
           delete proceedural_blocks[xblock][yblock];
@@ -58,9 +60,11 @@ function update_bodies() {
       delete proceedural_blocks[xblock];
     }
   }
+  //print(z);
 }
 
 function clean_unneeded(needed,blocksize) {
+  return;
   buffer = [];
   for(var i=0; i < planets.length; i++) {
     blk = planets[i].GetBlock(blocksize);
@@ -101,8 +105,7 @@ function populate_proceedural_block(xblock,yblock,blocksize) {
     }
     var size = Math.floor(rg.random()*(max_size-min_size))+min_size;
     p = new Planet()
-    p.galactic_x = x
-    p.galactic_y = y
+    p.coord.SetCartesian(x,y);
     //print(p.galactic_x+','+p.galactic_y)
     p.r = size
     p.id = Math.floor(rg.random()*10000000)
@@ -112,10 +115,10 @@ function populate_proceedural_block(xblock,yblock,blocksize) {
 }
 
 function draw_bodies(canvas,context) {
+  //print(planets.length);
   for(var i = 0; i < planets.length; i++) {
     var p = planets[i];
-    var mapcoord = galactic_coordinates.ToCartesian(p.galactic_x,p.galactic_y)
-    var cc = canvas_coord(mapcoord.x,mapcoord.y)
+    var cc = p.coord.GetCanvas();
     context.save();
     context.beginPath();
     context.arc(cc.x,cc.y,p.r,0,2*Math.PI);
@@ -128,19 +131,6 @@ function draw_bodies(canvas,context) {
     context.fillText(planets[i].name,cc.x,cc.y)
     context.restore();
   }
-  var mapcoord = galactic_coordinates.ToCartesian(1000,1000)
-  var cc = canvas_coord(mapcoord.x,mapcoord.y)
-  context.save();
-  context.beginPath();
-  context.arc(cc.x,cc.y,100,0,2*Math.PI);
-  context.fillStyle='black';
-  context.fill()
-  context.stroke();
-  context.fillStyle='white';
-  context.textAlign="center";
-  context.font="20px Ariel";
-  context.fillText("Middlehorndog",cc.x,cc.y)
-  context.restore();
 }
 
 
