@@ -22,14 +22,74 @@ var galactic_origin = {galactic_x:0,galactic_y:0};
 // galactic position of origin
 
 var fx_animations = []
-function fx(coord,duration,size) {
-  this.coord = coord;
-  this.duration = duration;
-  this.ttl = this.duration; //countdown till finished
-  this.size = size;
+function Fx(coord,duration,size) {
+  //Initialize these in Init functions
+  this.coord = 0;
+  this.duration = 0;
+  this.ttl = 0; //countdown till finished
+  this.max_particles = 1;
+  this.particle_count = 1; // this gets counted
+
   var self = this;
-  this.Draw(context) = function() {
-    return;
+
+  this.FinishInit = function() {
+    //random starts
+    self.particle_count = Math.floor(1+Math.random()*self.max_particles);
+    self.sizes = [];
+    self.directions = [];
+    self.theta_inits = [];
+    for(var i= 0; i < self.particle_count; i++) {
+      self.sizes.push((self.size-self.size/4)*Math.random()+self.size/4);
+      
+      var direction = -1;
+      if(Math.random() > 0.5) direction = 1;
+      self.directions.push(direction);
+
+      self.theta_inits.push(Math.random()*2*Math.PI);
+    }
+  }
+  this.InitBallistic_1 = function(coord) {
+    self.coord = coord;
+    self.duration = 20;
+    self.ttl = self.duration;
+    self.size = 5;
+    self.max_particles=3;
+    self.FinishInit();
+  }
+  this.Draw = function(context) {
+   for(var i = 0; i < this.particle_count; i++) {
+    var cc = self.coord.GetCanvas();
+    var f = self.duration-self.ttl;
+    //print(f);
+    var dist = 0.2*(1+self.theta_inits[i])*Math.log(f+1)/Math.log(2);
+    context.save();
+    context.globalAlpha = 1-(f/self.duration);
+    context.translate(cc.x,cc.y);
+    context.rotate(f*0.2*self.directions[i]+10*self.theta_inits[i]);
+    context.rect(dist,dist,self.sizes[i],self.sizes[i]);
+    context.translate(dist,dist);
+    context.rotate(f*8+self.theta_inits[i]);
+    context.fillStyle = '#000000';
+    context.strokeStyle = '#FFFFFF';
+    context.fill();
+    context.stroke();
+    context.restore();
+   }
+  }
+} 
+
+function update_fx(context) {
+  //print(fx_animations.length); 
+  var buffer = []
+  for(var i=0; i < fx_animations.length; i++) {
+    fx_animations[i].ttl -=1;
+    if(fx_animations[i].ttl<=0) continue;
+    buffer.push(fx_animations[i]);
+  }
+  fx_animations = buffer;
+  //print(fx_animations.length);
+  for(var i=0; i < fx_animations.length; i++) {
+    fx_animations[i].Draw(context);
   }
 }
 
@@ -339,6 +399,8 @@ function update_canvas() {
   draw_enemies(canvas,context);
   draw_hero(canvas,context);
   draw_hero_projectiles(canvas,context);
+  // fx needs drawn over bodies
+  update_fx(context);
   check_scan(canvas,context);
   check_triggers();
   draw_hud(canvas,context);
@@ -360,6 +422,13 @@ function update_projectiles() {
       break;
     }
     if(no_collision) buffer.push(player_projectiles[i]);
+    else {
+      // save the projectile for FX
+      var myfx = new Fx();
+      myfx.InitBallistic_1(player_projectiles[i].coord);
+      //,20,10);
+      fx_animations.push(myfx);
+    }
   }
   player_projectiles = buffer;
 }
@@ -498,9 +567,9 @@ function update_hero_position(canvas) {
   hero.MakeHeadingChange(theta_goal,hero.turn_rate);
 
   // catesian coordinates of where we want to go
-  var x_goal = r_goal*Math.cos(theta_goal)
-  var y_goal = r_goal*Math.sin(theta_goal)
-  
+  var x_goal = r_goal*Math.cos(theta_goal);
+  var y_goal = r_goal*Math.sin(theta_goal);
+
 
   // we can move by delta_r
   var newx = hero.coord.GetCartesian().x;

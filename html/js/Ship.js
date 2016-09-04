@@ -71,17 +71,22 @@ function Ship() {
   this.MakeHeadingChange = function(theta_goal,turn_rate) {
     if(turn_rate > self.turn_rate) turn_rate = self.turn_rate; // enforce max turn rate
     // Get theta back in some normal unit circle coordinates
-    if(self.theta > 2*Math.PI) self.theta -= 2*Math.PI;
-    if(self.theta <= -2*Math.PI) self.theta += 2*Math.PI;
+
+    self.theta = (self.theta+10*2*Math.PI)%(2*Math.PI);
+
+    theta_goal = (theta_goal+10*2*Math.PI)%(2*Math.PI);
+    //print(theta_goal);
+    //if(self.theta > 2*Math.PI) self.theta -= 2*Math.PI;
+    //if(self.theta <= -2*Math.PI) self.theta += 2*Math.PI;
     // can get our turning direction
     hero.current_turn = 0;
     if(Math.abs(self.theta-theta_goal) < turn_rate) {
       self.theta = theta_goal;
       self.current_turn = 0; // we arent turning because we are there
-    } else if(self.theta >= Math.PI/2 && theta_goal <= -Math.PI/2) {
+    } else if(self.theta >= Math.PI && theta_goal <= self.theta-Math.PI) {
       self.theta += turn_rate;
       self.current_turn = 1;
-    } else if(self.theta <= -Math.PI/2 && theta_goal >= Math.PI/2) {
+    } else if(self.theta <= theta_goal-Math.PI && theta_goal >= Math.PI) {
       self.theta -= turn_rate;
       self.current_turn = -1;
     } else if(hero.theta > theta_goal) {

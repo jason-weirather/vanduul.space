@@ -9,7 +9,8 @@ function check_scan(canvas,context) {
   var thetas = []
   for(var i =0; i < enemies.length; i++) {
     var e = enemies[i];
-    thetas.push([Math.atan2(e.cartesian_y,e.cartesian_x),Math.sqrt(e.cartesian_y*e.cartesian_y+e.cartesian_x*e.cartesian_x)]);
+    var ec = e.coord.GetCartesian();
+    thetas.push([Math.atan2(ec.y,ec.x),Math.sqrt(ec.y*ec.y+ec.x*ec.x)]);
   }
   // Sweeping scan
   var d = Math.max(canvas.height,canvas.width);
@@ -20,13 +21,7 @@ function check_scan(canvas,context) {
   context.fillStyle= use_color;
   context.globalAlpha=0.15;
   context.rotate(-scan_theta-Math.PI/2);
-  //context.strokeStyle= use_color;
-  //context.beginPath();
-  //context.moveTo(0,100);
-  //context.lineTo(0,d);
-  //context.lineWidth=10;
-  //context.stroke();
-  //context.strokeStyle= 'black';
+
   context.beginPath();
   context.moveTo(0,0);
   var inner_dist = 150;
@@ -52,15 +47,16 @@ function check_scan(canvas,context) {
   // Scan nearby ships
   for(var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
+    var ec = enemies[i].coord.GetCartesian();
     var padding = 50;
-    if(e.cartesian_x < -canvas.width/2+padding) continue;
-    if(e.cartesian_x >  canvas.width/2+padding) continue;
-    if(e.cartesian_y < -canvas.height/2+padding) continue;
-    if(e.cartesian_y > canvas.height/2+padding) continue;
+    if(ec.x < -canvas.width/2+padding) continue;
+    if(ec.x >  canvas.width/2+padding) continue;
+    if(ec.y < -canvas.height/2+padding) continue;
+    if(ec.y > canvas.height/2+padding) continue;
     // draw on ship
     //context.save();
-    rsize = 60;
-    cc = e.coord.GetCanvas();
+    var rsize = 60;
+    var cc = e.coord.GetCanvas();
     context.beginPath();
     context.rect(cc.x-rsize/2,cc.y-rsize/2,rsize,rsize);
     context.stroke();
@@ -87,9 +83,10 @@ function check_scan(canvas,context) {
   var min_range = 100;
   var best_p = null;
   for(var i=0; i < planets.length; i++) {
-    var dx =planets[i].galactic_x - hero.galactic_x
-    var dy = planets[i].galactic_y - hero.galactic_y
-    var d = Math.sqrt(dx*dx+dy*dy);
+    var d = planets[i].coord.GetDistance(hero.coord);
+    //var dx =planets[i].galactic_x - hero.galactic_x
+    //var dy = planets[i].galactic_y - hero.galactic_y
+    //var d = Math.sqrt(dx*dx+dy*dy);
     d -=planets[i].r;
     if(d > min_range) continue;
     min_range = d

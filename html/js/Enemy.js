@@ -138,6 +138,11 @@ function update_enemies(canvas,context) {
     if(hits.length > 0) {
       for(var j = 0; j < player_projectiles.length; j++) {
         if(!(hits.includes(j))) buffer.push(player_projectiles[j]);
+        else {
+          var myfx = new Fx();
+          myfx.InitBallistic_1(player_projectiles[j].coord);
+          fx_animations.push(myfx);
+        }
       }
     } else buffer = player_projectiles;
     player_projectiles = buffer;
