@@ -151,7 +151,7 @@ var enemies = []
 var hero = new Ship();
 // Storing player ship
 
-
+var bodies = new Bodies();
 var planets = []
 // Functions defined in ProceduralUniverse
 
@@ -185,6 +185,8 @@ function init_vars() {
 
   fx_animations = []
 
+  bodies = new Bodies();
+  planets = [];
 }
 
 
@@ -383,11 +385,11 @@ function process_input() {
     entry_complete = false;
     elm.style.visibility = "hidden";
     is_paused=false;
-    planets[get_input[1]].name = elm.value;
+    bodies.type['planets'][get_input[1]].name = elm.value;
     //Easter egg
-    if(planets[get_input[1]].name.match(/jumbify/i)) {
-      planets[get_input[1]].text_color="#000000";
-      planets[get_input[1]].color = "#F87217";
+    if(bodies.type['planets'][get_input[1]].name.match(/jumbify/i)) {
+      bodies.type['planets'][get_input[1]].text_color="#000000";
+      bodies.type['planets'][get_input[1]].color = "#F87217";
     }
     elm.value = '';
     get_input = [];
@@ -529,12 +531,9 @@ function update_projectiles() {
   for(var i = 0; i < player_projectiles.length; i++) {
     var no_collision = true;
     var gc = player_projectiles[i].coord.GetGalactic();
-    for(j = 0; j < planets.length; j++) {
-      var distance = planets[j].coord.GetDistance(player_projectiles[i].coord);
-      //var dx = planets[j].galactic_x-gc.x
-      //var dy = planets[j].galactic_y-gc.y
-      //point_distance(planets[j].galactic_x,planets[j].galactic_y,gc.x,gc.y)
-      if(distance-planets[j].r-player_projectiles[i].r>0) continue;
+    for(j = 0; j < bodies.type['planets'].length; j++) {
+      var distance = bodies.type['planets'][j].coord.GetDistance(player_projectiles[i].coord);
+      if(distance-bodies.type['planets'][j].r-player_projectiles[i].r>0) continue;
       no_collision = false;
       break;
     }
@@ -710,7 +709,7 @@ function update_hero_position(canvas) {
   //hero.coord = npos;
   //.SetCartesian(newx+deltax,newy+deltay);
 
-  var collision_list = [planets];
+  var collision_list = [bodies.type['planets']];
   var collided = false;
   for(var i = 0; i < collision_list.length; i++) {
     [no_collision, no_proximity] = check_no_collisions(canvas,hero,collision_list[i]);

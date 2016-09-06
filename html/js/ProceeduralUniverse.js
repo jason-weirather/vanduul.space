@@ -1,3 +1,9 @@
+function Bodies() {
+  this.types = ['planets','stars'];
+  this.type = {};
+  for(var i = 0; i < this.types.length; i++) this.type[this.types[i]] = [];
+}
+
 function Planet() {
   this.coord = new Coordinates();
   this.color = "#000000";
@@ -11,6 +17,56 @@ function Planet() {
     var xb = Math.floor(self.coord.GetGalactic().x/blocksize);
     var yb = Math.floor(self.coord.GetGalactic().y/blocksize);
     return {xblock:xb,yblock:yb};
+  }
+  this.Draw = function(context) {
+    draw_planet(self,context);
+  }
+}
+
+function Star() {
+  this.coord = new Coordinates();
+  this.color = "#FEC11D";
+  this.text_color = "#FFFFFF";
+  this.r = 0;
+  this.proximity = 0; //thickness of atmosphere 
+  this.name = '';
+  this.id = '';
+  this.spoke_count = 20;
+  this.spokes = [];
+  var self = this;
+  this.GetBlock = function(blocksize) {
+    var xb = Math.floor(self.coord.GetGalactic().x/blocksize);
+    var yb = Math.floor(self.coord.GetGalactic().y/blocksize);
+    return {xblock:xb,yblock:yb};
+  }
+  this.set_spokes = function() {
+    for(var i = 0; i < self.spoke_count; i++) {
+      var direction = 1;
+      if(Math.random() < 0.5) direction = -1;
+      var rate = 0.0001+Math.random()*0.0003;
+      var slen = self.r-0.3*Math.random();
+      //initial, rate, direction, length
+      this.spokes.push([i*2*Math.PI/self.spoke_count,rate,direction,slen])
+    }
+  }
+  this.Draw = function(context) {
+    draw_star(self,context);
+  }
+}
+
+function draw_star(s,context) {
+  for(var i = 0; i < s.spokes.length; i++) {
+    var [theta_init,rate,direction,r] = s.spokes[i];
+    context.save();
+    context.beginPath();
+    s.spokes[i][0]+=rate*direction;
+    var cc = s.coord.GetCanvas();
+    var skew = 1/4;
+    context.fillStyle=s.color;
+    context.translate(cc.x,cc.y);
+    context.rotate(s.spokes[i][0])
+    triangle(context,-r*skew,-r*skew,-r*skew,r*skew,(1-skew)*r,0);
+    context.restore();
   }
 }
 
@@ -65,7 +121,8 @@ function update_bodies() {
 }
 
 function clean_unneeded(needed,blocksize) {
-  return;
+ for(var h=0; h<bodies.types.length; h++) {
+  planets = bodies.type[bodies.types[h]];
   buffer = [];
   for(var i=0; i < planets.length; i++) {
     blk = planets[i].GetBlock(blocksize);
@@ -81,7 +138,9 @@ function clean_unneeded(needed,blocksize) {
     buffer.push(planets[i]);
   }
   planets = buffer;
+ }
 }
+
 
 function populate_proceedural_block(xblock,yblock,blocksize) {
   var max_planets=50;
@@ -95,35 +154,36 @@ function populate_proceedural_block(xblock,yblock,blocksize) {
   //print(num_planets)
   for(var i = 0; i < num_planets; i++) {
     var x = 0;
-    if(xblock >= 0) {
-      x = Math.floor(rg.random()*blocksize)+xblock*blocksize;
-    } else {
-      x = -1*Math.floor(rg.random()*blocksize)+(xblock+1)*blocksize;
-    }
     var y = 0;
-    if(yblock >= 0) {
-      y = Math.floor(rg.random()*blocksize)+yblock*blocksize;
-    } else {
-      y = -1*Math.floor(rg.random()*blocksize)+(yblock+1)*blocksize;
-    }
     var size = Math.floor(rg.random()*(max_size-min_size))+min_size;
-    p = new Planet()
-    p.coord.SetCartesian(x,y);
+    p = new Planet();
+    p.coord = rg.get_proceedural_cartesian(blocksize,xblock,yblock);
     //print(p.galactic_x+','+p.galactic_y)
     p.r = size
     p.proximity = Math.floor(rg.random()*(max_atmosphere-min_atmosphere))+min_atmosphere;
-    p.id = Math.floor(rg.random()*10000000)
-    planets.push(p)
-    //print(p.galactic_x+','+p.galactic_y)
-   }
+    p.id = Math.floor(rg.random()*10000000);
+    bodies.type['planets'].push(p);
+  }
+  // do a star.. sometimes
+  if(rg.random() < 0.2) {
+    s = new Star();
+    s.coord = rg.get_proceedural_cartesian(blocksize,xblock,yblock);
+    s.r = 500;
+    s.proximity = 50;
+    s.id = 1;
+    s.set_spokes();
+    bodies.type['stars'].push(s);
+  }
 }
 
 function draw_bodies(canvas,context) {
-  //print(planets.length);
+ for(var h = 0; h < bodies.types.length; h++) {
+  planets = bodies.type[bodies.types[h]];
   for(var i = 0; i < planets.length; i++) {
     var p = planets[i];
-    draw_planet(p,context);
+    p.Draw(context);
   }
+ }
 }
 
 function draw_planet(p,context) {
@@ -156,6 +216,24 @@ function RandomGenerator(v1,v2) {
   this.seed2 = v2
   this.seed3 = 1000;
   var self = this;
+  // return a cartesian coordiante
+  this.get_proceedural_cartesian = function(blocksize,xblock,yblock) {
+    var x = 0;
+    if(xblock >= 0) {
+      x = Math.floor(self.random()*blocksize)+xblock*blocksize;
+    } else {
+      x = -1*Math.floor(self.random()*blocksize)+(xblock+1)*blocksize;
+    }
+    var y = 0;
+    if(yblock >= 0) {
+      y = Math.floor(self.random()*blocksize)+yblock*blocksize;
+    } else {
+      y = -1*Math.floor(self.random()*blocksize)+(yblock+1)*blocksize;
+    }
+    var c = new Coordinates();
+    c.SetCartesian(x,y);
+    return c;
+  }
   this.random = function() {
     self.seed3 += 1;
     var x = Math.sin(self.seed3)*100;

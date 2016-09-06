@@ -17,8 +17,8 @@ function spawn_enemies(canvas) {
     //gc = galactic_coordinates.ToGalactic(cx,cy);
     // make sure this is not a planetary position
     var too_close = false;
-    for(var i = 0; i < planets.length; i++) {
-      var p = planets[i];
+    for(var i = 0; i < bodies.type['planets'].length; i++) {
+      var p = bodies.type['planets'][i];
       if(p.coord.GetDistance(cc)<p.r+100) {
         too_close = true;
         break;
@@ -198,7 +198,7 @@ function fly_patrol(canvas,e) {
     var cg = new Coordinates();
     cg.SetGalactic(newx,newy);
     if(Math.random() < 0.5) {
-      e.MakePositionChange(cg,e.acceleration,canvas,[planets]);
+      e.MakePositionChange(cg,e.acceleration,canvas,[bodies.type['planets']]);
     } else {
       e.MakePositionChange(cg,e.acceleration,canvas,[]);
     }
@@ -225,7 +225,7 @@ function fly_alert(canvas,e) {
     } else if(e.ai_profile.type=='position') {
       gc = e.ai_profile.position_goal;
     } 
-    e.MakePositionChange(gc,e.acceleration,canvas,[planets]);
+    e.MakePositionChange(gc,e.acceleration,canvas,[bodies.type['planets']]);
     if(gc.GetDistance(e.coord) < e.acceleration*2) e.ai_profile.ttl=0; // done with this profile if we reach our position
     if(e.coord.GetDistance(hero.coord) < e.ai_profile.disengage_distance) {
       e.ai_profile.ttl=0;

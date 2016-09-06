@@ -84,19 +84,19 @@ function check_scan(canvas,context) {
   // Now look for planet
   var min_range = 100;
   var best_p = null;
-  for(var i=0; i < planets.length; i++) {
-    var d = planets[i].coord.GetDistance(hero.coord);
+  for(var i=0; i < bodies.type['planets'].length; i++) {
+    var d = bodies.type['planets'][i].coord.GetDistance(hero.coord);
     //var dx =planets[i].galactic_x - hero.galactic_x
     //var dy = planets[i].galactic_y - hero.galactic_y
     //var d = Math.sqrt(dx*dx+dy*dy);
-    d -=planets[i].r;
+    d -=bodies.type['planets'][i].r;
     if(d > min_range) continue;
     min_range = d
     best_p = i
   }
   if(best_p) {
     // We have a planet
-    if(planets[best_p].name=='') {
+    if(bodies.type['planets'][best_p].name=='') {
       get_input = ['planet name',best_p];
       is_scan = true;
       return;
