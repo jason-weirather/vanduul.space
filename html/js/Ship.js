@@ -34,14 +34,19 @@ function Ship() {
   this.scan_distance = 350;
   this.scan_range_start = 0;
   this.scan_range_end = 2*Math.PI;
+  this.atmosphere = false; // are we in atmosphere?
+  this.burn = 0;
 
   //AI properties
   this.alerted = false;
+  this.ai_profile = new AI_Profile(); // from enemy
+  this.collided = false;
 
   //Player properties
   this.min_throttle=0.2; //deadzone low
   this.max_throttle=0.9; //deadzone high
   this.max_dist=0.2;     //max distance can traverse from origin (for a player)
+  this.death_timer = 300;
 
   var self = this;
   //Functions of Ship
@@ -63,6 +68,36 @@ function Ship() {
   // Set a new coordinate here
   this.SetCoordinates=function(coord){
     self.coord = coord;
+  }
+
+  // given a coordinate, turn a ship to face it
+  // return how far the difference is
+  this.TurnToCoordinate = function(coord,turn_rate) {
+    if(turn_rate > self.turn_rate) { turn_rate = self.turn_rate; }
+    var theta1 = self.theta;
+    var theta2 = Math.atan2(coord.GetCartesian().y-self.coord.GetCartesian().y,coord.GetCartesian().x-self.coord.GetCartesian().x);
+    theta1 += 5*2*Math.PI;
+    theta2 += 5*2*Math.PI;
+    theta1 = theta1%(2*Math.PI);
+    theta2 = theta2%(2*Math.PI);
+    var diff = theta2-theta1;
+    //self.theta = self.theta + diff;
+    //return;
+    if(Math.abs(diff) < turn_rate) {
+      self.theta = self.theta + diff;
+      return diff;
+    }
+    if(Math.abs(diff) <= Math.PI) {
+      if(diff < 0) { direction = -1; }
+      else if(diff >= 0) { direction = 1; }
+    } else {
+      if(diff < 0) { direction = 1; }
+      else if(diff >= 0) { direction = -1; }
+    }
+    if(direction==1) { self.theta += turn_rate; }
+    else { self.theta -= turn_rate; }
+    return diff;
+    //print(direction);
   }
 
   // take a new theta you want to face and a turn rate you can get there
@@ -122,7 +157,8 @@ function Ship() {
     //print(collision_list.length);
     var collided = false;
     for(var i =0; i < collision_list.length; i++) {
-      if(!(check_no_collisions(canvas,self,collision_list[i]))) {
+      [no_collision,no_proximity] = check_no_collisions(canvas,self,collision_list[i]);
+      if(!(no_collision)) {
         collided = true;
         break;
       }
@@ -132,9 +168,11 @@ function Ship() {
       self.coord = next_coord
     } else {
       //print('collided')
+      self.health-=1;
       self.throttle = -0.3;
-      self.theta -=0.2;
-      self.coord = old_coord
+      self.theta -=0.3;
+      self.coord = old_coord;
+      self.collided = true;
       //print('collision')
     }
   }
@@ -145,6 +183,18 @@ function Ship() {
 }
 
 function draw_ship(ship,context) {
+  // check for atmosphere 
+  if(ship.burn > 0 && Math.random() < 0.5) {
+    var myfx = new Fx();
+    myfx.InitFlameTrail_1(ship.coord);
+    fx_animations.push(myfx);
+  }
+  if(ship.health > 0 && ship.health < 50 && Math.random() < 0.5 && ship.throttle > 0.01) {
+    //print(ship.health);
+    var myfx = new Fx();
+    myfx.InitFlameTrail_2(ship.coord);
+    fx_animations.push(myfx);
+  }
   if(ship.type=='terrapin') {
     draw_terrapin(context,ship);
   } else if  (ship.type=='scythe') {

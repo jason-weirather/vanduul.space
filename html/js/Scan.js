@@ -1,10 +1,12 @@
 function check_scan(canvas,context) {
-  if(hero.Velocity()<0.01 && mouseState=='up') stop_counter+=1;
-  else {
+  // see if we can skip this whole thing
+  if(!is_scan) {
     stop_counter = 0;
     return;
   }
-  if(stop_counter < 60*1) return;
+
+
+  if(hero.Velocity()<0.01) stop_counter+=1;
   // find enemies using enemies defined in main
   var thetas = []
   for(var i =0; i < enemies.length; i++) {
@@ -96,7 +98,7 @@ function check_scan(canvas,context) {
     // We have a planet
     if(planets[best_p].name=='') {
       get_input = ['planet name',best_p];
-      is_paused = true;
+      is_scan = true;
       return;
     }
   }

@@ -47,17 +47,28 @@ function draw_scythe(context,ship) {
   context.restore();
 }
 
+function get_burn_gray(base_gray,ship) {
+  var burn = ship.burn;
+  if(ship.burn > 0) {
+    return "rgb("+Math.floor(Math.min(burn+base_gray,255))+","+Math.floor(Math.max(base_gray-burn/4,base_gray))+","+Math.floor(Math.max(base_gray-burn/2,0))+")";
+  } else {
+    return "rgb("+base_gray+","+base_gray+","+base_gray+")";
+  }
+}
+
 function draw_terrapin(context,ship) {
   context.save();
   open_damage(context,ship);
-  context.fillStyle='gray';
-  ellipse(context,0,0,15,10);
+  context.fillStyle = get_burn_gray(128,ship);
+  ellipse(context,0,0,15,10); // main ship
+
+
   context.fillStyle='black'; //canopy
   ellipse(context,9,0,3,2);
 
   context.fillStyle='#8A0808'; // red dish
   ellipse(context,-3,0,6,6);
-  context.fillStyle='gray';
+  context.fillStyle=get_burn_gray(128,ship);
   ellipse(context,-3,0,4,4);
 
   context.fillStyle='black';

@@ -2,9 +2,13 @@
 
 var verbose = true;
 var finished = false;
+var game_over = false;
 var mouseState = "up";
-var is_paused = false;
+var is_scan = false;
 var global_counter = 0;
+
+var player_projectiles = [];
+
 
 var destroyed_ships = [];
 //animate destruction. holds ships that are currently being destroyed
@@ -29,7 +33,9 @@ function Fx(coord,duration,size) {
   this.ttl = 0; //countdown till finished
   this.max_particles = 1;
   this.particle_count = 1; // this gets counted
-
+  this.layer = 'top';
+  this.fill = '#000000';
+  this.outline = '#FFFFFF';
   var self = this;
 
   this.FinishInit = function() {
@@ -54,8 +60,42 @@ function Fx(coord,duration,size) {
     self.ttl = self.duration;
     self.size = 5;
     self.max_particles=3;
+    self.layer = 'top';
     self.FinishInit();
   }
+  this.InitBallistic_2 = function(coord) {
+    self.coord = coord;
+    self.duration = 40;
+    self.ttl = self.duration;
+    self.size = 10;
+    self.max_particles=5;
+    self.layer = 'top';
+    self.FinishInit();
+  }
+  this.InitFlameTrail_1 = function(coord) {
+    //self.global_counter % 50==1;
+    self.coord = coord.copy();
+    self.duration = 30;
+    self.ttl = self.duration;
+    self.size = 5;
+    self.max_particles=1;
+    self.layer = 'bottom';
+    self.fill = 'rgba(255,125,0,0.7)';
+    self.outline = 'rgba(255,125,0,0.7)';
+    self.FinishInit();
+  } 
+  this.InitFlameTrail_2 = function(coord) {
+    //self.global_counter % 50==1;
+    self.coord = coord.copy();
+    self.duration = 60;
+    self.ttl = self.duration;
+    self.size = 8;
+    self.max_particles=1;
+    self.layer = 'bottom';
+    self.fill = 'rgba(0,0,0,0.3)';
+    self.outline = 'rgba(0,0,0,0.3)';
+    self.FinishInit();
+  } 
   this.Draw = function(context) {
    for(var i = 0; i < this.particle_count; i++) {
     var cc = self.coord.GetCanvas();
@@ -63,14 +103,15 @@ function Fx(coord,duration,size) {
     //print(f);
     var dist = 0.2*(1+self.theta_inits[i])*Math.log(f+1)/Math.log(2);
     context.save();
+    context.beginPath();
     context.globalAlpha = 1-(f/self.duration);
     context.translate(cc.x,cc.y);
     context.rotate(f*0.2*self.directions[i]+10*self.theta_inits[i]);
     context.rect(dist,dist,self.sizes[i],self.sizes[i]);
     context.translate(dist,dist);
     context.rotate(f*8+self.theta_inits[i]);
-    context.fillStyle = '#000000';
-    context.strokeStyle = '#FFFFFF';
+    context.fillStyle = self.fill;
+    context.strokeStyle = self.outline;
     context.fill();
     context.stroke();
     context.restore();
@@ -78,18 +119,22 @@ function Fx(coord,duration,size) {
   }
 } 
 
-function update_fx(context) {
+function update_fx(context,layer) {
   //print(fx_animations.length); 
   var buffer = []
   for(var i=0; i < fx_animations.length; i++) {
-    fx_animations[i].ttl -=1;
-    if(fx_animations[i].ttl<=0) continue;
+    if(fx_animations[i].layer == layer) {
+      fx_animations[i].ttl -=1;
+      if(fx_animations[i].ttl<=0) continue;
+    }
     buffer.push(fx_animations[i]);
   }
   fx_animations = buffer;
   //print(fx_animations.length);
   for(var i=0; i < fx_animations.length; i++) {
-    fx_animations[i].Draw(context);
+    if(fx_animations[i].layer==layer) {
+      fx_animations[i].Draw(context);
+    }
   }
 }
 
@@ -116,6 +161,31 @@ var proceedural_blocks = {}
 
 //Global for the mouse position in cartesian
 var mousePos = {x:0,y:0};
+
+function init_vars() {
+  player_projectiles = [];
+  mousePos = {x:0,y:0};
+  proceedural_blocks = {}
+  hero = new Ship();
+  enemies = []
+  destroyed_ships = [];
+//animate destruction. holds ships that are currently being destroyed
+
+  stop_counter = 0;
+// Used for scanning which is in Scan.js
+
+  get_input = [];
+// used for reading in text input
+
+  particles = []
+// in Environment.js
+
+  galactic_origin = {galactic_x:0,galactic_y:0};
+// galactic position of origin
+
+  fx_animations = []
+
+}
 
 
 // Coordinate good for things other than the player
@@ -204,7 +274,6 @@ function PlayerCoordinates() {
 
 
 
-var player_projectiles = []
 //one player bullet
 function PlayerProjectile(ship,weapon) {
   var weapon_r = Math.sqrt(weapon.x*weapon.x+weapon.y*weapon.y)
@@ -230,10 +299,10 @@ function init() {
   loc = window.location.href.replace(/\//g,'');
   loc = loc.replace(/http:/g,'');
   print(loc);
-  if(!(loc=='vanduul.space')) {
-    finished = true;
-    return;
-  }
+  //if(!(loc=='vanduul.space')) {
+  //  finished = true;
+  //  return;
+  //}
   stretch_canvas();
   var canvas = document.getElementById("game_board");
   var context = canvas.getContext("2d");
@@ -244,40 +313,50 @@ function init() {
   document.onmousedown = function(e) {
     //update global
     mouseState = 'down';
+    if(is_scan) return;
     hero.PressTrigger();
   }
   document.onmouseup = function(e) {
     //update global
     mouseState = 'up';
+    if(is_scan) return;
     // release trigger
     // add extra for unpausing on pause screen
-    if(is_paused==true) toggle_pause();
     hero.ReleaseTrigger();
   }
   document.body.onkeyup = function(e) {
     if(e.keyCode==32) {
-      toggle_pause();
+      if(game_over) {
+        init_vars();
+        init_hero();
+        game_over = false;
+      } else {
+        toggle_scan();
+      }
     }
   }
-  document.body.onmouseout = function() {
-    if(!is_paused) toggle_pause();
-  }
+  //document.body.onmouseout = function() {
+  //}
+  init_vars();
+  init_hero();
+  mainLoop();
+}
 
+function init_hero() {
   // Can set up some variables
+  if(hero.health <= 0) hero = new Ship();
   var hero_weapon = new HardPoint();
   hero_weapon.x = 15
   hero_weapon.y = 0
   hero.hard_points.push(hero_weapon);
   hero.coord = new PlayerCoordinates();  // give hero the special coordinates
-
-  mainLoop();
 }
 
 function mainLoop() {
   global_counter += 1;
   if(global_counter > 16000) global_counter = 0;
-  if(!is_paused && !finished)  update_canvas();
-  if(is_paused && get_input.length > 0) {
+  if(!game_over)  update_canvas();
+  if(get_input.length > 0) {
     process_input();
   }
   requestAnimationFrame(mainLoop);
@@ -288,13 +367,13 @@ function process_input() {
   var context = canvas.getContext("2d");
   // We can name planet
   var elm = document.getElementById("user_input")
-  if(elm.style.visibility!="visible") {
+  //if(elm.style.visibility!="visible") {
     context.save()
     context.textAlign="center";
     var msg = "Please name the planet";
     drop_shadow(context,msg,40,0,-150)
     context.restore()
-  }
+  //}
   elm.style.visibility = "visible";
   elm.maxLength = "20";
   elm.style.left = Math.floor(canvas.width/2-50 )+"px";
@@ -363,7 +442,6 @@ function update_canvas() {
   var canvas = document.getElementById("game_board");
   var context = canvas.getContext("2d");
   //if(mousePos.x <= -canvas.width/2 || mousePos.x >= canvas.width/2) {
-  //  toggle_pause();
   //  return;
   //}
 
@@ -380,8 +458,9 @@ function update_canvas() {
 
 
   //Now draw cooler stuff
-
-  update_hero_position(canvas);
+  if(hero.health > 0) {
+    update_hero_position(canvas);
+  }
   update_galactic_origin();
   if(global_counter%3==0) {
     spawn_enemies(canvas);
@@ -393,17 +472,55 @@ function update_canvas() {
     update_projectiles();
   }
   update_enemies(canvas,context);
+  update_fx(context,'bottom');
   draw_bodies(canvas,context);
   draw_destroyed(canvas,context);
   draw_particles(canvas,context);
   draw_enemies(canvas,context);
-  draw_hero(canvas,context);
+  if(hero.health > 0) {
+    draw_hero(canvas,context);
+  } else {
+    if(hero.death_timer > 0) hero.death_timer -=1;
+    else game_over = true;
+  }
   draw_hero_projectiles(canvas,context);
   // fx needs drawn over bodies
-  update_fx(context);
-  check_scan(canvas,context);
+  update_fx(context,'top');
+  if(hero.health > 0) {
+    check_scan(canvas,context);
+  }
   check_triggers();
   draw_hud(canvas,context);
+  if(hero.health <= 0) {
+    draw_game_over(canvas,context);
+  }
+}
+
+function draw_game_over(canvas,context) {
+  if(hero.death_timer > 100) return;
+  context.save();
+  context.textAlign="center";
+  var msg = "Game Over";
+  context.translate(5,5);
+  context.globalAlpha = (1-Math.max(0,hero.death_timer/100))*0.5;
+  context.font ="150px Arial";
+  context.fillStyle = '#000000';
+  context.fillText(msg,0,0);
+  context.restore();
+  context.save();
+  context.textAlign="center";
+  context.globalAlpha = (1-Math.max(0,hero.death_timer/100));
+  context.font ="150px Arial";
+  context.fillStyle = '#FFFFFF';
+  context.fillText(msg,0,0);
+  context.restore();
+  if(hero.death_timer <= 0) {
+    context.save();
+    context.textAlign="center";
+    msg = "press SPACE to continue"
+    drop_shadow(context,msg,30,0,50)
+    context.restore();
+  }
 }
 
 function update_projectiles() {
@@ -504,6 +621,8 @@ function draw_hud(canvas,context) {
   else if(rx < 0 && ry < 0) quad = 'C';
   else if(rx >= 0 && ry < 0) quad = 'D';
   msg = quad+'/'+pad(Math.abs(rx),8)+'/'+pad(Math.abs(ry),8);
+  context.save();
+  context.textAlign="start";
   drop_shadow(context,msg,20,-1*canvas.width/2+30,-1*canvas.height/2+30)
 
   //display throttle
@@ -517,10 +636,11 @@ function draw_hud(canvas,context) {
   drop_shadow(context,msg,20,-1*canvas.width/2+30,-1*canvas.height/2+90);
 
   //display help
-  msg = 'Press SPACE for PAUSE.  Left click to FIRE.'
+  msg = 'Press SPACE to SCAN.  Left click to FIRE.'
   drop_shadow(context,msg,16,-1*canvas.width/2+30,canvas.height/2-30)
 
   //display credit
+  context.restore();
   context.save();
   context.textAlign="end";
   msg = 'This is a free fan-made game by Vacation.';
@@ -552,6 +672,10 @@ function update_hero_position(canvas) {
   if(hero.throttle < 0) hero.throttle+=hero.acceleration;
   else if(r < max_r*hero.min_throttle) hero.throttle=0;
   else hero.throttle = Math.min((r-max_r*hero.min_throttle)/(max_r-hero.min_throttle*max_r),1);
+
+  //over-ride throttle if we are scanning
+  if(is_scan) hero.throttle = 0; 
+
   // the farthest from origin we can have ship
   var max_r = Math.min(canvas.width/2,canvas.height/2);
 
@@ -589,7 +713,20 @@ function update_hero_position(canvas) {
   var collision_list = [planets];
   var collided = false;
   for(var i = 0; i < collision_list.length; i++) {
-    if(!(check_no_collisions(canvas,hero,collision_list[i]))) {
+    [no_collision, no_proximity] = check_no_collisions(canvas,hero,collision_list[i]);
+    if(!no_proximity) {
+      hero.atmosphere = true;
+      if(hero.throttle > 0.7) {
+        hero.burn+=1;
+      } else hero.burn -=1;
+    } else {
+      hero.atmosphere = false;
+      if(hero.burn > 0) {
+        hero.burn-=5;
+      } else hero.burn = 0;
+    }
+    //print(hero.atmosphere);
+    if(!no_collision) {
       collided = true;
       break;
     }
@@ -601,6 +738,26 @@ function update_hero_position(canvas) {
     hero.throttle = -hero.acceleration;
     hero.theta -= 0.2;
   }
+  // lets check for projectile hits
+  var hits = collision_details(canvas,hero,player_projectiles);
+  for(var j = 0; j < hits.length; j++) {
+    //print(hits[j].weapon);
+    hero.health -= player_projectiles[hits[j]].weapon.damage;
+    if(hero.health <=0) destroyed_ships.push(hero);
+    //print(hero.health);
+  }
+  var buffer = []; // buffer the projectiles
+  if(hits.length > 0) {
+    for(var j = 0; j < player_projectiles.length; j++) {
+      if(!(hits.includes(j))) buffer.push(player_projectiles[j]);
+      else {
+        var myfx = new Fx();
+        myfx.InitBallistic_2(player_projectiles[j].coord);
+        fx_animations.push(myfx);
+      }
+    }
+  } else  buffer = player_projectiles;
+  player_projectiles = buffer;
 }
 
 function collision_details(canvas,ship,projectiles) {
@@ -620,19 +777,30 @@ function collision_details(canvas,ship,projectiles) {
   }
   return collisions;
 }
-
+// return true if there is no collision and true if there is none in proximity
 function check_no_collisions(canvas,ship,bodies) {
   var max_distance = Math.max(canvas.width+1000,canvas.height+1000);
   //print(bodies.length);
+  var no_proximity = true; // if there is a proximity flag set it
   for(i=0;i<bodies.length;i++) {
     var p = bodies[i];
     var d2 = p.coord.GetDistance(ship.coord);
+
+
     //var d2 = (p.coord.GetGalactic().x-ship.GetGalactic().x)*(p.galactic_x-ship.galactic_x)+(p.galactic_y-ship.galactic_y)*(p.galactic_y-ship.galactic_y);
     if(d2 > max_distance) continue;
+    // might be a planet
+    if(bodies[i].proximity) {  //if proximity is set
+      if(d2 <= p.r+ship.r+p.proximity) {
+        no_proximity = false;
+      }
+    }
     // check closer for neighboring bodies
-    if(d2 <= p.r+ship.r) return false;
+    if(d2 <= p.r+ship.r) {
+      return [false,no_proximity];
+    }
   }
-  return true;
+  return [true,no_proximity];
 }
 
 
@@ -692,18 +860,19 @@ function stretch_canvas() {
   print("new width: "+height+"px")
   document.getElementById("game_board").style.height=height+"px";
   var canvas = document.getElementById("game_board");
-  canvas.width = width
-  canvas.height = height  
+  canvas.width = width;
+  canvas.height = height;
   var context = canvas.getContext("2d");
   context.translate(canvas.width/2,canvas.height/2)
 }
 
 
-function toggle_pause() {
+function toggle_scan() {
+  //if(hero.heath <= 0) return;
   if(get_input.length > 0) return; // different kind of apuse
-  if(is_paused) is_paused = false;
-  else is_paused = true;
-  if(is_paused) {
+  if(is_scan) is_scan = false;
+  else is_scan = true;
+  if(is_scan) {
     var canvas = document.getElementById("game_board");
     var context = canvas.getContext("2d");
     context.textAlign="center";

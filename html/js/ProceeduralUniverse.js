@@ -3,6 +3,7 @@ function Planet() {
   this.color = "#000000";
   this.text_color = "#FFFFFF";
   this.r = 0;
+  this.proximity = 0; //thickness of atmosphere 
   this.name = '';
   this.id = '';
   var self = this;
@@ -86,6 +87,8 @@ function populate_proceedural_block(xblock,yblock,blocksize) {
   var max_planets=50;
   var min_size = 50;
   var max_size = 300;
+  var min_atmosphere = 30;
+  var max_atmosphere = 70;
   var rg = new RandomGenerator(xblock,yblock)
   var num_planets = Math.floor(rg.random()*max_planets);
   
@@ -108,6 +111,7 @@ function populate_proceedural_block(xblock,yblock,blocksize) {
     p.coord.SetCartesian(x,y);
     //print(p.galactic_x+','+p.galactic_y)
     p.r = size
+    p.proximity = Math.floor(rg.random()*(max_atmosphere-min_atmosphere))+min_atmosphere;
     p.id = Math.floor(rg.random()*10000000)
     planets.push(p)
     //print(p.galactic_x+','+p.galactic_y)
@@ -118,8 +122,22 @@ function draw_bodies(canvas,context) {
   //print(planets.length);
   for(var i = 0; i < planets.length; i++) {
     var p = planets[i];
+    draw_planet(p,context);
+  }
+}
+
+function draw_planet(p,context) {
     var cc = p.coord.GetCanvas();
     context.save();
+    // do atmosphere
+    context.beginPath();
+    context.arc(cc.x,cc.y,p.r+p.proximity,0,2*Math.PI);
+    context.globalAlpha = 0.1;
+    context.fillStyle='#000000';
+    context.fill()
+    context.globalAlpha = 1;
+
+    // do body
     context.beginPath();
     context.arc(cc.x,cc.y,p.r,0,2*Math.PI);
     context.fillStyle=p.color;
@@ -128,9 +146,8 @@ function draw_bodies(canvas,context) {
     context.fillStyle=p.text_color;
     context.textAlign="center";
     context.font="20px Ariel";
-    context.fillText(planets[i].name,cc.x,cc.y)
+    context.fillText(p.name,cc.x,cc.y)
     context.restore();
-  }
 }
 
 
