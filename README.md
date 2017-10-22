@@ -1,2 +1,3 @@
 # vanduul.space
-A browser game
+
+A browser game written in javascript.
