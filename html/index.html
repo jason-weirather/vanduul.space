@@ -8,8 +8,8 @@
 
   <title>Vanduul Space</title>
 </head>
-<body onload="VANDUULSPACE.init()" onresize="VANDUULSPACE.stretch_canvas();">
+<body onload="VANDUULSPACE.init('game_board')">
   <canvas id="game_board">
   </canvas>
-  <input id="user_input" onkeyup="user_input_keypress(event)" type="text"></input>
+  <input id="user_input" onkeyup="VANDUULSPACE.user_input_keypress(event)" type="text"></input>
 </body>

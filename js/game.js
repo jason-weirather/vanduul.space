@@ -297,7 +297,7 @@ function PlayerProjectile(ship,weapon) {
 //{xreal:0,yreal:0,x:0,y:0,xcanvas:0,ycanvas:0,theta:0}
 
 // Start-up function
-function init() {
+function init(game_board_id) {
   loc = window.location.href.replace(/\//g,'');
   loc = loc.replace(/http:/g,'');
   print(loc);
@@ -306,7 +306,9 @@ function init() {
   //  return;
   //}
   stretch_canvas();
-  var canvas = document.getElementById("game_board");
+  var canvas = document.getElementById(game_board_id);
+  canvas.addEventListener("resize",stretch_canvas);
+  document.getElementsByTagName("body")[0].addEventListener("resize",stretch_canvas);
   var context = canvas.getContext("2d");
   canvas.addEventListener('mousemove',function(e) {
     //update global
@@ -341,7 +343,7 @@ function init() {
   //}
   init_vars();
   init_hero();
-  mainLoop();
+  mainLoop(game_board_id);
 }
 
 function init_hero() {
@@ -354,18 +356,18 @@ function init_hero() {
   hero.coord = new PlayerCoordinates();  // give hero the special coordinates
 }
 
-function mainLoop() {
+function mainLoop(game_board_id) {
   global_counter += 1;
   if(global_counter > 16000) global_counter = 0;
   if(!game_over)  update_canvas();
   if(get_input.length > 0) {
-    process_input();
+    process_input(game_board_id);
   }
   requestAnimationFrame(mainLoop);
 }
 
-function process_input() {
-  var canvas = document.getElementById("game_board");
+function process_input(game_board_id) {
+  var canvas = document.getElementById(game_board_id);
   var context = canvas.getContext("2d");
   // We can name planet
   var elm = document.getElementById("user_input")
@@ -2016,3 +2018,4 @@ function close_damage(context,ship) {
 var exports = module.exports = {};
 exports.init = init;
 exports.stretch_canvas = stretch_canvas;
+exports.user_input_keypress = user_input_keypress;
