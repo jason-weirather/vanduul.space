@@ -7,12 +7,14 @@
     "type": "git",
     "url": "git+https://github.com/jason-weirather/vanduul.space.git"
   },
+  "main": "src/VanduulSpace.js",
   "dependencies": {
     "react": "^16.0.0",
     "react-dom": "^16.0.0",
-    "react-scripts": "1.0.14"
+    "react-scripts": "1.0.14",
+    "webpack": "^3.8.1"
   },
-  "homepage": "https://github.com/jason-weirather/vanduul.space#README.md",
+  "homepage": "./",
   "keywords": [
     "vanduul",
     "star",
@@ -33,5 +35,6 @@
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject"
-  }
+  },
+  "devDependencies": {}
 }
