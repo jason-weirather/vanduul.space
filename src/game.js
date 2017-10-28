@@ -296,19 +296,17 @@ function PlayerProjectile(ship,weapon) {
 
 //{xreal:0,yreal:0,x:0,y:0,xcanvas:0,ycanvas:0,theta:0}
 
-// Start-up function
-function init(game_board_id) {
-  loc = window.location.href.replace(/\//g,'');
+// Start-up functoin
+function init() {
+  var loc = window.location.href.replace(/\//g,'');
   loc = loc.replace(/http:/g,'');
-  print(loc);
+  //print(loc);
   //if(!(loc=='vanduul.space')) {
   //  finished = true;
   //  return;
   //}
   stretch_canvas();
-  var canvas = document.getElementById(game_board_id);
-  canvas.addEventListener("resize",stretch_canvas);
-  document.getElementsByTagName("body")[0].addEventListener("resize",stretch_canvas);
+  var canvas = document.getElementById("game_board");
   var context = canvas.getContext("2d");
   canvas.addEventListener('mousemove',function(e) {
     //update global
@@ -339,11 +337,17 @@ function init(game_board_id) {
       }
     }
   }
+  document.body.onresize = function () {
+    stretch_canvas();
+  }
+  document.getElementById('user_input').onkeyup = function(event) {
+    user_input_keypress(event);
+  }
   //document.body.onmouseout = function() {
   //}
   init_vars();
   init_hero();
-  mainLoop(game_board_id);
+  mainLoop();
 }
 
 function init_hero() {
@@ -356,18 +360,19 @@ function init_hero() {
   hero.coord = new PlayerCoordinates();  // give hero the special coordinates
 }
 
-function mainLoop(game_board_id) {
+function mainLoop() {
   global_counter += 1;
   if(global_counter > 16000) global_counter = 0;
   if(!game_over)  update_canvas();
   if(get_input.length > 0) {
-    process_input(game_board_id);
+    process_input();
   }
   requestAnimationFrame(mainLoop);
 }
 
-function process_input(game_board_id) {
-  var canvas = document.getElementById(game_board_id);
+function process_input() {
+  var is_paused;
+  var canvas = document.getElementById("game_board");
   var context = canvas.getContext("2d");
   // We can name planet
   var elm = document.getElementById("user_input")
@@ -398,16 +403,18 @@ function process_input(game_board_id) {
   }
 }
 
-var entry_complete = false
+var entry_complete = false;
 function user_input_keypress(e) {
-  e.which = e.which || e.keyCode;
-  if(e.which==13) {
-    entry_complete = true
+  console.log(e);
+  var selection = e.which || e.keyCode;
+  if(selection ==13) {
+    entry_complete = true;
   }
 }
 
 function draw_hero_projectiles(canvas,context) {
-  buffer = []
+  var buffer = [];
+  var i,b,c,j;
   for(i = 0; i < player_projectiles.length; i++) {
     b = player_projectiles[i];
     if(b.traversed > b.weapon.range) {
@@ -529,7 +536,8 @@ function draw_game_over(canvas,context) {
 
 function update_projectiles() {
   // check the projectiles against the planets
-  var buffer = []
+  var buffer = [];
+  var j;
   for(var i = 0; i < player_projectiles.length; i++) {
     var no_collision = true;
     var gc = player_projectiles[i].coord.GetGalactic();
@@ -552,9 +560,10 @@ function update_projectiles() {
 }
 
 function draw_destroyed(canvas,context) {
-  max_time = 180;
+  var max_time = 180;
   //print(destroyed_ships.length);
-  buffer = []
+  var buffer = [];
+  var i, cc;
   for(i=0;i<destroyed_ships.length;i++) {
     var e = destroyed_ships[i];
     // turn off the scan output
@@ -580,6 +589,7 @@ function draw_destroyed(canvas,context) {
 }
 
 function check_triggers() {
+  var i;
   process_trigger(hero);
   for(i = 0; i < enemies.length;i++) {
     process_trigger(enemies[i]);
@@ -587,6 +597,7 @@ function check_triggers() {
 }
 
 function process_trigger(ship) {
+    var w,b;
     // do hero energy
     ship.energy += ship.energy_recharge;
     ship.energy = Math.min(ship.energy,ship.max_energy);
@@ -611,6 +622,7 @@ function process_trigger(ship) {
 }
 
 function draw_hud(canvas,context) {
+  var msg;
   //Draw mouse coordinate for debugging purposes
   //context.font='20pt Calibri';
   //context.fillStyle='white';
@@ -636,13 +648,15 @@ function draw_hud(canvas,context) {
   msg = Math.round(hero.energy/hero.max_energy*100)+'%';
   drop_shadow(context,msg,20,-1*canvas.width/2+30,-1*canvas.height/2+90);
 
+
+
   //display help
   msg = 'Press SPACE to SCAN.  Left click to FIRE.'
   drop_shadow(context,msg,16,-1*canvas.width/2+30,canvas.height/2-30)
 
   //display credit
-  context.restore();
-  context.save();
+  //context.restore();
+  //context.save();
   context.textAlign="end";
   msg = 'This is a free fan-made game by Vacation.';
   drop_shadow(context,msg,16,canvas.width/2-30,canvas.height/2-60)
@@ -650,7 +664,31 @@ function draw_hud(canvas,context) {
   drop_shadow(context,msg,16,canvas.width/2-30,canvas.height/2-30)
   
   context.restore();
+  //display health
+  var health_width = 400;
+  var vertical_dist = 15;
+  var health_height = 30;
+  context.save()
+  context.beginPath();
+  context.strokeStyle = 'rgba(0,0,0,0.5)';
+  context.lineWidth = 5;
+  context.rect(canvas.width/2-(health_width+57),-canvas.height/2+(vertical_dist+3),health_width,health_height);
+  context.stroke();
 
+  context.beginPath();
+  context.fillStyle = 'rgba(82,122,102,0.8)';
+  context.lineWidth = 5;
+  context.rect(canvas.width/2-(health_width+60),-canvas.height/2+vertical_dist,health_width*(Math.max(hero.health,0)/hero.max_health),health_height);
+  context.fill();
+
+  context.beginPath();
+  context.strokeStyle = '#FFFFFF';
+  context.lineWidth = 5;
+  context.rect(canvas.width/2-(health_width+60),-canvas.height/2+vertical_dist,health_width,health_height);
+  context.stroke();
+
+
+  context.restore();
 }
 
 function update_galactic_origin() {
@@ -711,6 +749,18 @@ function update_hero_position(canvas) {
   //hero.coord = npos;
   //.SetCartesian(newx+deltax,newy+deltay);
 
+  if(hero.burn>2000) {
+    hero.health-=1;
+    if(hero.health <=0) destroyed_ships.push(hero);
+  }
+
+  // check stars
+  var [no_collision,no_proximity] = check_no_collisions(canvas,hero,bodies.type['stars'])  
+  if(!no_collision || !no_proximity) {
+    hero.burn+=20;
+  }  
+
+  // check planets
   var collision_list = [bodies.type['planets']];
   var collided = false;
   for(var i = 0; i < collision_list.length; i++) {
@@ -763,7 +813,8 @@ function update_hero_position(canvas) {
 
 function collision_details(canvas,ship,projectiles) {
   var max_distance = Math.max(canvas.width+1000,canvas.height+1000);
-  collisions = []
+  var collisions = [];
+  var i;
   for(i=0;i<projectiles.length;i++) {
     var p = projectiles[i];
     //var gc = galactic_coordinates.ToGalactic(p.x,p.y);
@@ -780,6 +831,7 @@ function collision_details(canvas,ship,projectiles) {
 }
 // return true if there is no collision and true if there is none in proximity
 function check_no_collisions(canvas,ship,bodies) {
+  var i;
   var max_distance = Math.max(canvas.width+1000,canvas.height+1000);
   //print(bodies.length);
   var no_proximity = true; // if there is a proximity flag set it
@@ -869,6 +921,7 @@ function stretch_canvas() {
 
 
 function toggle_scan() {
+  var cc;
   //if(hero.heath <= 0) return;
   if(get_input.length > 0) return; // different kind of apuse
   if(is_scan) is_scan = false;
@@ -888,6 +941,10 @@ function toggle_scan() {
   }
 }
 
+//function point_distance(x1,y1,x2,y2) {
+//  return Math.sqrt((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2));
+//}
+
 // Debugging print function.
 // Pre: any message to print and verbose set to true or false
 // Post: if verbose is true then print to console
@@ -897,7 +954,10 @@ function print(msg) {
   }
 }  
 
+
+
 function spawn_enemies(canvas) {
+  var rnx,cx,rny,cy;
   // put enemies into play
   var max_enemies = 10;
   while(enemies.length < max_enemies) {
@@ -1081,6 +1141,7 @@ function AI_Profile() {
 }
 
 function fly_patrol(canvas,e) {
+    var newx, newy;
     e.theta+=e.ai_profile.patrol_direction*e.turn_rate*0.05;
     //print(e.Velocity())
     if(e.throttle < 0.01) {
@@ -1106,6 +1167,7 @@ function fly_patrol(canvas,e) {
 }
 
 function fly_alert(canvas,e) {
+    var newx, newy;
     //var goal_theta = 0;
     //e.MakeHeadingChange(goal_theta,0.05)
     //e.theta = 
@@ -1158,6 +1220,7 @@ function draw_enemies(canvas,context) {
 }
 
 function Particle(coord) {
+  var min_frames, min_drag, min_size, max_size, max_frames, min_drag, max_drag;
   this.coord = coord;
   min_frames = 150
   max_frames = 350
@@ -1177,6 +1240,7 @@ function Particle(coord) {
 function draw_particles(canvas,context) {
   var max_particles = 500;
   var relative_speed = 0.1;
+  var canvas_multiplier, rx, ry, c, p, buffer,i, alpha_scale,r;
   canvas_multiplier = 1.5;  //how far out to spread particles
   while(particles.length < max_particles) {
     rx = 2*(Math.random()-0.5)*canvas.width*canvas_multiplier;
@@ -1249,9 +1313,10 @@ function Planet() {
 function Star() {
   this.coord = new Coordinates();
   this.color = "#FEC11D";
+  this.outer_color = "rgba(255,165,0,0.01)";
   this.text_color = "#FFFFFF";
   this.r = 0;
-  this.proximity = 0; //thickness of atmosphere 
+  this.proximity = 0; //
   this.name = '';
   this.id = '';
   this.spoke_count = 20;
@@ -1280,21 +1345,29 @@ function Star() {
 function draw_star(s,context) {
   for(var i = 0; i < s.spokes.length; i++) {
     var [theta_init,rate,direction,r] = s.spokes[i];
+    var cc = s.coord.GetCanvas();
+    context.save();
+    context.fillStyle=s.outer_color;
+    context.translate(cc.x,cc.y);
+    context.beginPath();
+    context.arc(0,0,s.r+s.proximity,0,2*Math.PI);
+    context.fill();
+    context.restore();
     context.save();
     context.beginPath();
     s.spokes[i][0]+=rate*direction;
-    var cc = s.coord.GetCanvas();
     var skew = 1/4;
     context.fillStyle=s.color;
     context.translate(cc.x,cc.y);
     context.rotate(s.spokes[i][0])
-    triangle(context,-r*skew,-r*skew,-r*skew,r*skew,(1-skew)*r,0);
+    triangle(context,-r*skew,-r*skew,-r*skew,r*skew,r,0);
     context.restore();
   }
 }
 
 
 function update_bodies() {
+  var xblock, yblock;
   var gc = galactic_origin;
   //print(galactic_origin.galactic_x);
   var blocksize = 5000;
@@ -1344,6 +1417,7 @@ function update_bodies() {
 }
 
 function clean_unneeded(needed,blocksize) {
+  var blk, buffer;
  for(var h=0; h<bodies.types.length; h++) {
   planets = bodies.type[bodies.types[h]];
   buffer = [];
@@ -1366,6 +1440,7 @@ function clean_unneeded(needed,blocksize) {
 
 
 function populate_proceedural_block(xblock,yblock,blocksize) {
+  var p, s;
   var max_planets=50;
   var min_size = 50;
   var max_size = 300;
@@ -1435,6 +1510,7 @@ function draw_planet(p,context) {
 
 
 function RandomGenerator(v1,v2) {
+  var num2, num3;
   this.seed1 = v1
   this.seed2 = v2
   this.seed3 = 1000;
@@ -1475,7 +1551,9 @@ function RandomGenerator(v1,v2) {
   }
 }
 
+
 function check_scan(canvas,context) {
+  var use_color, got_click;
   // see if we can skip this whole thing
   if(!is_scan) {
     stop_counter = 0;
@@ -1552,12 +1630,13 @@ function check_scan(canvas,context) {
   var msg = "Scanning";
   var scan_msgs = ["......",".  ....  .","..  ..  ..","...    ...","..  ..  ..",".  ....  ."];
   drop_shadow(context,msg,20,0,-50);
-  scale_counter = Math.floor(stop_counter/60);
+  var scale_counter = Math.floor(stop_counter/60);
   drop_shadow(context,scan_msgs[scale_counter%scan_msgs.length],20,0,-30);
   context.restore();
 
+
   // only stay in if you've been scanning a while
-  if(stop_counter < 60*6) return;
+  if(stop_counter < 60*1) return;
   // Now look for planet
   var min_range = 100;
   var best_p = null;
@@ -1574,9 +1653,32 @@ function check_scan(canvas,context) {
   if(best_p) {
     // We have a planet
     if(bodies.type['planets'][best_p].name=='') {
-      get_input = ['planet name',best_p];
-      is_scan = true;
-      return;
+      context.save();
+      context.beginPath();
+      context.fillStyle='rgba(255,255,255,0.6)';
+      context.rect(-300,-100,200,50);
+      context.fill(); 
+      context.beginPath();
+      context.fillStyle="#000000";
+      context.rect(-300,-100,200,50);
+      context.lineWidth = 2;
+      got_click = false;
+      if(mousePos.x > -300 && mousePos.x < 100) {
+        if(mousePos.y > 50 && mousePos.y < 100) {
+          context.lineWidth = 5;
+          if(mouseState=='down') {got_click = true; }
+        }
+      }
+      context.stroke(); 
+      msg = 'Name the planet';
+      context.font="25px Arial";
+      context.fillText(msg,-200,-70);
+      context.restore();
+      if(got_click) {
+        get_input = ['planet name',best_p];
+        is_scan = true;
+        return;
+      }
     }
   }
 }
@@ -1603,6 +1705,7 @@ function check_color(scan_theta,thetas,delta) {
 //turn_rate: how many radians you are allowed to turn per tick
 
 function Ship() {
+  var direction, no_collision, no_proximity;
   this.type = 'terrapin';
   this.damage_frames = 0; // keep track of the number of frames in the damage state
   this.coord = new Coordinates();
@@ -2015,7 +2118,11 @@ function close_damage(context,ship) {
   context.restore();
 }
 
-var exports = module.exports = {};
-exports.init = init;
-exports.stretch_canvas = stretch_canvas;
-exports.user_input_keypress = user_input_keypress;
+//var exports = module.exports = {};
+//exports.init = init;
+//exports.stretch_canvas = stretch_canvas;
+//exports.user_input_keypress = user_input_keypress;
+
+var VS = {init:init, stretch_canvas:stretch_canvas,user_input_keypress:user_input_keypress};
+
+export default VS;
