@@ -48,6 +48,7 @@ function VanduulSpace(element,options) {
 }
 
 function mainLoop() {
+  process.exit();
   global_counter += 1;
   if (previous_container_height !== input_container.style.height || previous_container_width !== input_container.style.width) {
     previous_container_width = input_container.style.width;
