@@ -1,8 +1,7 @@
 {
   "name": "vanduul.space",
   "version": "1.0.0",
-  "description": "A browser game for fun.",
-  "private": true,
+  "description": "A browser game for fun inspired by Star Citizen.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jason-weirather/vanduul.space.git"

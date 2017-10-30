@@ -22,3 +22,8 @@ or it can be ran through docker
 `docker run -p 8080:8080 -d -t vacation/vanduul.space`
 
 That will launch a server with Vanduul Space running on port 8080.  
+
+You can add it to a website as a widget through NPM
+
+`$ npm install vanduul.space`
+
