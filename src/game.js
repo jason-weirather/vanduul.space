@@ -1,11 +1,18 @@
-// overal globals
+import './game.css';
 
+const uuidv4 = require('uuid/v4');
+// overal globals
+var input_container = null; // set on init (supplied from outside)
+var canvas_id = null; // set on init
+var input_id = null;
 var verbose = true;
 var finished = false;
 var game_over = false;
 var mouseState = "up";
 var is_scan = false;
 var global_counter = 0;
+var previous_container_width = 0;
+var previous_container_height = 0;
 
 var player_projectiles = [];
 
@@ -26,6 +33,111 @@ var galactic_origin = {galactic_x:0,galactic_y:0};
 // galactic position of origin
 
 var fx_animations = []
+
+function VanduulSpace(element,options) {
+  canvas_id = uuidv4();
+  input_id = uuidv4();
+  input_container = element;
+  //game_board
+  //user_input
+  var opening_text ='<canvas id="'+canvas_id+'" class="vanduul-space-canvas"></canvas><input id="'+input_id+'" type="text" class="vanduul-space-input"></input></div>';
+  element.innerHTML = opening_text;
+  init();
+  stretch_canvas();
+  return true;
+}
+
+function mainLoop() {
+  global_counter += 1;
+  if (previous_container_height !== input_container.style.height || previous_container_width !== input_container.style.width) {
+    previous_container_width = input_container.style.width;
+    previous_container_height = input_container.style.height;
+    console.log('poll catch resize')
+    stretch_canvas();
+  }
+  if(global_counter > 16000) global_counter = 0;
+  if(!game_over)  update_canvas();
+  if(get_input.length > 0) {
+    process_input();
+  }
+  requestAnimationFrame(mainLoop);
+}
+
+// Start-up functoin
+function init() {
+  var loc = window.location.href.replace(/\//g,'');
+  loc = loc.replace(/http:/g,'');
+  //print(loc);
+  //if(!(loc=='vanduul.space')) {
+  //  finished = true;
+  //  return;
+  //}
+  //.vanduul-space-container {
+  //background: url("./anvil-terrapin-background2.jpg") no-repeat 50% 50% fixed;
+  //background-size: cover;
+ // margin: 0;
+  //padding: 0px 0px 0px 0px;
+//}
+  //input_container.style.background = 'url("./anvil-terrapin-background2.jpg") no-repeat 50% 50% fixed;'
+  document.getElementById(input_id).style.visibility = "hidden";
+  initMouseOver();
+  stretch_canvas();
+  var canvas = document.getElementById(canvas_id);
+  var context = canvas.getContext("2d");
+  canvas.addEventListener('mousemove',function(e) {
+    //update global
+    update_mouse_position(canvas,e);
+  });
+  document.onmousedown = function(e) {
+    //update global
+    mouseState = 'down';
+    if(is_scan) return;
+    hero.PressTrigger();
+  }
+  document.onmouseup = function(e) {
+    //update global
+    mouseState = 'up';
+    if(is_scan) return;
+    // release trigger
+    // add extra for unpausing on pause screen
+    hero.ReleaseTrigger();
+  }
+  document.body.onkeyup = function(e) {
+    if (canvas.mouseIsOver === false) return; // Constrain us to our canvas
+    if(e.keyCode==32) {
+      if(game_over) {
+        init_vars();
+        init_hero();
+        game_over = false;
+      } else {
+        toggle_scan();
+      }
+    }
+  }
+  input_container.onresize = function () {
+    stretch_canvas();
+  }
+  document.getElementById(input_id).onkeyup = function(event) {
+    console.log('key registered')
+    user_input_keypress(event);
+  }
+  init_vars();
+  init_hero();
+  mainLoop();
+}
+
+function initMouseOver()   {
+   var div = document.getElementById(canvas_id);
+   div.mouseIsOver = false;
+   div.onmouseover = function()   {
+      this.mouseIsOver = true;
+   };
+   div.onmouseout = function()   {
+      mouseState = "up";
+      this.mouseIsOver = false;
+   }
+}
+
 function Fx(coord,duration,size) {
   //Initialize these in Init functions
   this.coord = 0;
@@ -296,60 +408,6 @@ function PlayerProjectile(ship,weapon) {
 
 //{xreal:0,yreal:0,x:0,y:0,xcanvas:0,ycanvas:0,theta:0}
 
-// Start-up functoin
-function init() {
-  var loc = window.location.href.replace(/\//g,'');
-  loc = loc.replace(/http:/g,'');
-  //print(loc);
-  //if(!(loc=='vanduul.space')) {
-  //  finished = true;
-  //  return;
-  //}
-  stretch_canvas();
-  var canvas = document.getElementById("game_board");
-  var context = canvas.getContext("2d");
-  canvas.addEventListener('mousemove',function(e) {
-    //update global
-    update_mouse_position(canvas,e);
-  });
-  document.onmousedown = function(e) {
-    //update global
-    mouseState = 'down';
-    if(is_scan) return;
-    hero.PressTrigger();
-  }
-  document.onmouseup = function(e) {
-    //update global
-    mouseState = 'up';
-    if(is_scan) return;
-    // release trigger
-    // add extra for unpausing on pause screen
-    hero.ReleaseTrigger();
-  }
-  document.body.onkeyup = function(e) {
-    if(e.keyCode==32) {
-      if(game_over) {
-        init_vars();
-        init_hero();
-        game_over = false;
-      } else {
-        toggle_scan();
-      }
-    }
-  }
-  document.body.onresize = function () {
-    stretch_canvas();
-  }
-  document.getElementById('user_input').onkeyup = function(event) {
-    user_input_keypress(event);
-  }
-  //document.body.onmouseout = function() {
-  //}
-  init_vars();
-  init_hero();
-  mainLoop();
-}
-
 function init_hero() {
   // Can set up some variables
   if(hero.health <= 0) hero = new Ship();
@@ -360,22 +418,13 @@ function init_hero() {
   hero.coord = new PlayerCoordinates();  // give hero the special coordinates
 }
 
-function mainLoop() {
-  global_counter += 1;
-  if(global_counter > 16000) global_counter = 0;
-  if(!game_over)  update_canvas();
-  if(get_input.length > 0) {
-    process_input();
-  }
-  requestAnimationFrame(mainLoop);
-}
-
 function process_input() {
+  console.log('enter process input');
   var is_paused;
-  var canvas = document.getElementById("game_board");
+  var canvas = document.getElementById(canvas_id);
   var context = canvas.getContext("2d");
   // We can name planet
-  var elm = document.getElementById("user_input")
+  var elm = document.getElementById(input_id)
   //if(elm.style.visibility!="visible") {
     context.save()
     context.textAlign="center";
@@ -389,6 +438,7 @@ function process_input() {
   elm.style.top = Math.floor(canvas.height/2-100)+"px";
   //check for the entry
   if(entry_complete) {
+    console.log('entry is complete')
     entry_complete = false;
     elm.style.visibility = "hidden";
     is_paused=false;
@@ -408,8 +458,10 @@ function user_input_keypress(e) {
   console.log(e);
   var selection = e.which || e.keyCode;
   if(selection ==13) {
+    console.log('entry complete')
     entry_complete = true;
   }
+  console.log(entry_complete);
 }
 
 function draw_hero_projectiles(canvas,context) {
@@ -450,7 +502,7 @@ function pad(num,size) {
 }
 
 function update_canvas() {
-  var canvas = document.getElementById("game_board");
+  var canvas = document.getElementById(canvas_id);
   var context = canvas.getContext("2d");
   //if(mousePos.x <= -canvas.width/2 || mousePos.x >= canvas.width/2) {
   //  return;
@@ -904,15 +956,13 @@ function update_mouse_position(canvas,e) {
 // Set the canvas to be the full window
 function stretch_canvas() {
   print("Stretch canvas")
-  var width = window.innerWidth;
-  var height = window.innerHeight;
-  print(width)
-  print(height)
-  print("new width: "+width+"px")
-  document.getElementById("game_board").style.width=width+"px";
-  print("new width: "+height+"px")
-  document.getElementById("game_board").style.height=height+"px";
-  var canvas = document.getElementById("game_board");
+  //var width = window.innerWidth;
+  //var height = window.innerHeight;
+  var width = input_container.clientWidth;
+  var height = input_container.clientHeight;
+  document.getElementById(canvas_id).style.width=width+"px";
+  document.getElementById(canvas_id).style.height=height+"px";
+  var canvas = document.getElementById(canvas_id);
   canvas.width = width;
   canvas.height = height;
   var context = canvas.getContext("2d");
@@ -927,7 +977,7 @@ function toggle_scan() {
   if(is_scan) is_scan = false;
   else is_scan = true;
   if(is_scan) {
-    var canvas = document.getElementById("game_board");
+    var canvas = document.getElementById(canvas_id);
     var context = canvas.getContext("2d");
     context.textAlign="center";
     var c = new Coordinates();
@@ -2123,6 +2173,5 @@ function close_damage(context,ship) {
 //exports.stretch_canvas = stretch_canvas;
 //exports.user_input_keypress = user_input_keypress;
 
-var VS = {init:init, stretch_canvas:stretch_canvas,user_input_keypress:user_input_keypress};
-
-export default VS;
+//var VS = {init:init, stretch_canvas:stretch_canvas,user_input_keypress:user_input_keypress, runVanduulSpace:runVanduulSpace};
+export default VanduulSpace;

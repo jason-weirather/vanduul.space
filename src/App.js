@@ -1,12 +1,12 @@
 import React, { Component } from 'react';
 import './App.css';
-import VanduulSpace from './VanduulSpace.js'
+import VanduulSpaceComponent from './VanduulSpace.js'
 
 class App extends Component {
   render() {
     return (
       <div className="App">
-        <VanduulSpace />
+        <VanduulSpaceComponent />
       </div>
     );
   }

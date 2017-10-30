@@ -1,22 +1,31 @@
 import React from 'react';
-import './game.css';
 import './main.css';
-import VS from './game.js';
+import VanduulSpace from './game.js';
+import uuidv4 from 'uuid/v4';
 
-class VanduulSpace extends React.Component {
+
+class VanduulSpaceComponent extends React.Component {
+    constructor(props) {
+    super(props);
+        this.state = {id:uuidv4()};
+    }
   render() {
     return (
-      <div>
-        <canvas id="game_board">
-        </canvas>
-        <input id="user_input" type="text"></input>
-      </div>
+      <div id={this.state.id}></div>
     );
   }
   componentDidMount() {
-    VS.init();
-    VS.stretch_canvas();
+    var that = this;
+    document.getElementById(this.state.id).style.width = window.innerWidth+'px';
+    document.getElementById(this.state.id).style.height = window.innerHeight+'px';
+    window.addEventListener("resize", function(){
+       document.getElementById(that.state.id).style.width = window.innerWidth+'px';
+       document.getElementById(that.state.id).style.height = window.innerHeight+'px';
+       console.log('change size')
+    });
+    VanduulSpace(document.getElementById(this.state.id));
+    // Now resize body to the document size
   }
 }
 
-export default VanduulSpace;
+export default VanduulSpaceComponent;
