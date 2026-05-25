@@ -1239,20 +1239,16 @@ function update_enemies(canvas,context) {
 function AI_Profile() {
   this.patrol_direction = 1;
   if(Math.random() < 0.5) this.patrol_direction = -1;
-  this.target_lead = 0;
-  this.x = 100+Math.random()*300;
-  if(Math.random() < 0.5) this.x *= -1;
-  this.y = 100+Math.random()*300;
-  if(Math.random() < 0.5) this.y *= -1;
-  this.disengage_distance = 50+Math.random()*200;
-  this.ttl = 20+Math.random()*200;
-  this.alert_throttle = Math.random()*0.95+0.05;
-  this.type = 'persue';
-  if(Math.random() < 0.9 && hero) this.type = 'position';
-  if(hero) {
-    this.position_goal = new Coordinates();
-    this.position_goal.SetCartesian(hero.coord.GetCartesian().x,hero.coord.GetCartesian().y);
-  }
+  this.ttl = 120+Math.random()*180;
+  this.alert_throttle = 0.35+Math.random()*0.4;
+  this.combat_distance = 180+Math.random()*140;
+  this.combat_distance_wave = 25+Math.random()*55;
+  this.strafe_offset = 40+Math.random()*90;
+  this.strafe_direction = 1;
+  if(Math.random() < 0.5) this.strafe_direction = -1;
+  this.wave_phase = Math.random()*2*Math.PI;
+  this.fire_distance = this.combat_distance + 120;
+  this.refresh_distance = 25+Math.random()*35;
 }
 
 function fly_patrol(canvas,e) {
@@ -1282,34 +1278,61 @@ function fly_patrol(canvas,e) {
 }
 
 function fly_alert(canvas,e) {
-    var newx, newy;
-    //var goal_theta = 0;
-    //e.MakeHeadingChange(goal_theta,0.05)
-    //e.theta = 
+    var dist, dx, dy, radial_theta, tangent_theta;
+    var hero_cart = hero.coord.GetCartesian();
+    var enemy_cart = e.coord.GetCartesian();
+    var goal_distance, movement_step, desired_distance, tangent_offset;
+    var radial_unit_x, radial_unit_y, tangent_unit_x, tangent_unit_y;
     e.ai_profile.ttl--;
-    e.throttle=e.ai_profile.alert_throttle;
-    if(e.coord.GetDistance(hero.coord) > 100) e.throttle = 1;
-    newx = e.Velocity()*Math.cos(e.theta);
-    newy = e.Velocity()*Math.sin(e.theta);
-    newx += e.coord.GetGalactic().x;
-    newy += e.coord.GetGalactic().y;
+
+    dx = enemy_cart.x-hero_cart.x;
+    dy = enemy_cart.y-hero_cart.y;
+    dist = Math.sqrt(dx*dx+dy*dy);
+    if(dist < 1) {
+      dist = 1;
+      dx = 1;
+      dy = 0;
+    }
+
+    radial_theta = Math.atan2(dy,dx);
+    tangent_theta = radial_theta+e.ai_profile.strafe_direction*Math.PI/2;
+
+    desired_distance = e.ai_profile.combat_distance;
+    desired_distance += Math.sin(global_counter*0.03+e.ai_profile.wave_phase)*e.ai_profile.combat_distance_wave;
+    desired_distance = Math.max(120,desired_distance);
+
+    tangent_offset = e.ai_profile.strafe_offset;
+    if(dist > desired_distance*1.6) tangent_offset *= 0.4;
+    else if(dist > desired_distance*1.2) tangent_offset *= 0.7;
+    else if(dist < desired_distance*0.75) tangent_offset *= 0.6;
+
+    radial_unit_x = Math.cos(radial_theta);
+    radial_unit_y = Math.sin(radial_theta);
+    tangent_unit_x = Math.cos(tangent_theta);
+    tangent_unit_y = Math.sin(tangent_theta);
+
     var gc = new Coordinates();
-    //gc.SetGalactic(newx+e.ai_profile.x,newy+e.ai_profile.y);
-    if(e.ai_profile.type=='persue') {
-      gc.SetCartesian(hero.coord.GetCartesian().x+e.ai_profile.x,hero.coord.GetCartesian().y+e.ai_profile.y);
-    } else if(e.ai_profile.type=='position') {
-      gc = e.ai_profile.position_goal;
-    } 
-    e.MakePositionChange(gc,e.acceleration,canvas,[bodies.type['planets']]);
-    if(gc.GetDistance(e.coord) < e.acceleration*2) e.ai_profile.ttl=0; // done with this profile if we reach our position
-    if(e.coord.GetDistance(hero.coord) < e.ai_profile.disengage_distance) {
+    gc.SetCartesian(
+      hero_cart.x+radial_unit_x*desired_distance+tangent_unit_x*tangent_offset,
+      hero_cart.y+radial_unit_y*desired_distance+tangent_unit_y*tangent_offset
+    );
+
+    goal_distance = gc.GetDistance(e.coord);
+    movement_step = Math.min(e.acceleration,0.2+goal_distance/160);
+    if(dist < desired_distance*0.6) {
+      movement_step = e.acceleration;
+    }
+    e.throttle = Math.max(e.ai_profile.alert_throttle,movement_step/e.acceleration);
+
+    e.MakePositionChange(gc,movement_step,canvas,[bodies.type['planets']]);
+    if(goal_distance < e.ai_profile.refresh_distance) {
       e.ai_profile.ttl=0;
     }
 
     // handle turns based on our model of choice flee or fighto
     var diff = e.TurnToCoordinate(hero.coord,e.turn_rate);
   
-    if(Math.abs(diff) < 0.2 && Math.abs(diff) < Math.PI) {
+    if(dist < e.ai_profile.fire_distance && Math.abs(diff) < 0.2 && Math.abs(diff) < Math.PI) {
       e.trigger='down';
     } else {
       e.trigger = 'up';
