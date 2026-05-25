@@ -1,6 +1,5 @@
 import './game.css';
 
-const uuidv4 = require('uuid/v4');
 // overal globals
 var input_container = null; // set on init (supplied from outside)
 var canvas_id = null; // set on init
@@ -33,21 +32,73 @@ var galactic_origin = {galactic_x:0,galactic_y:0};
 // galactic position of origin
 
 var fx_animations = []
+var animation_frame_id = null;
+var cleanup_callbacks = [];
+var game_is_active = false;
+
+function randomId() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+    return window.crypto.randomUUID();
+  }
+  return 'vanduul-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+}
+
+function registerCleanup(fn) {
+  cleanup_callbacks.push(fn);
+}
+
+function resetCleanups() {
+  cleanup_callbacks.forEach(function(fn) {
+    fn();
+  });
+  cleanup_callbacks = [];
+}
+
+function destroyGame() {
+  game_is_active = false;
+  if (animation_frame_id !== null) {
+    cancelAnimationFrame(animation_frame_id);
+    animation_frame_id = null;
+  }
+  resetCleanups();
+  if (input_container) {
+    input_container.innerHTML = '';
+    input_container.classList.remove('vanduul-space-root');
+  }
+  input_container = null;
+  canvas_id = null;
+  input_id = null;
+  mouseState = "up";
+  is_scan = false;
+  game_over = false;
+  entry_complete = false;
+  get_input = [];
+}
 
 function VanduulSpace(element,options) {
-  canvas_id = uuidv4();
-  input_id = uuidv4();
+  if (game_is_active) {
+    destroyGame();
+  }
+  canvas_id = randomId();
+  input_id = randomId();
   input_container = element;
+  input_container.classList.add('vanduul-space-root');
+  input_container.tabIndex = 0;
   //game_board
   //user_input
   var opening_text ='<canvas id="'+canvas_id+'" class="vanduul-space-canvas"></canvas><input id="'+input_id+'" type="text" class="vanduul-space-input"></input></div>';
   element.innerHTML = opening_text;
+  game_is_active = true;
   init();
   stretch_canvas();
-  return true;
+  input_container.focus();
+  return { destroy: destroyGame };
 }
 
 function mainLoop() {
+  if (!game_is_active || !input_container) {
+    return;
+  }
   global_counter += 1;
   if (previous_container_height !== input_container.style.height || previous_container_width !== input_container.style.width) {
     previous_container_width = input_container.style.width;
@@ -60,7 +111,7 @@ function mainLoop() {
   if(get_input.length > 0) {
     process_input();
   }
-  requestAnimationFrame(mainLoop);
+  animation_frame_id = requestAnimationFrame(mainLoop);
 }
 
 // Start-up functoin
@@ -83,28 +134,30 @@ function init() {
   initMouseOver();
   stretch_canvas();
   var canvas = document.getElementById(canvas_id);
-  var context = canvas.getContext("2d");
-  canvas.addEventListener('mousemove',function(e) {
+  var input = document.getElementById(input_id);
+  var onMouseMove = function(e) {
     //update global
     update_mouse_position(canvas,e);
-  });
-  document.onmousedown = function(e) {
+  };
+  var onMouseDown = function() {
     //update global
     mouseState = 'down';
+    input_container.focus();
     if(is_scan) return;
     hero.PressTrigger();
-  }
-  document.onmouseup = function(e) {
+  };
+  var onMouseUp = function() {
     //update global
     mouseState = 'up';
     if(is_scan) return;
     // release trigger
     // add extra for unpausing on pause screen
     hero.ReleaseTrigger();
-  }
-  document.body.onkeyup = function(e) {
-    if (canvas.mouseIsOver === false) return; // Constrain us to our canvas
-    if(e.keyCode==32) {
+  };
+  var onKeyUp = function(e) {
+    if (document.activeElement === input) return;
+    if(e.code === 'Space' || e.keyCode == 32) {
+      e.preventDefault();
       if(game_over) {
         init_vars();
         init_hero();
@@ -113,14 +166,27 @@ function init() {
         toggle_scan();
       }
     }
-  }
-  input_container.onresize = function () {
+  };
+  var onResize = function () {
     stretch_canvas();
-  }
-  document.getElementById(input_id).onkeyup = function(event) {
-    console.log('key registered')
+  };
+  var onInputKeyUp = function(event) {
     user_input_keypress(event);
-  }
+  };
+  canvas.addEventListener('mousemove', onMouseMove);
+  canvas.addEventListener('mousedown', onMouseDown);
+  window.addEventListener('mouseup', onMouseUp);
+  window.addEventListener('resize', onResize);
+  input_container.addEventListener('keyup', onKeyUp);
+  input.addEventListener('keyup', onInputKeyUp);
+  registerCleanup(function() {
+    canvas.removeEventListener('mousemove', onMouseMove);
+    canvas.removeEventListener('mousedown', onMouseDown);
+    window.removeEventListener('mouseup', onMouseUp);
+    window.removeEventListener('resize', onResize);
+    input_container.removeEventListener('keyup', onKeyUp);
+    input.removeEventListener('keyup', onInputKeyUp);
+  });
   init_vars();
   init_hero();
   mainLoop();
@@ -419,8 +485,6 @@ function init_hero() {
 }
 
 function process_input() {
-  console.log('enter process input');
-  var is_paused;
   var canvas = document.getElementById(canvas_id);
   var context = canvas.getContext("2d");
   // We can name planet
@@ -433,15 +497,16 @@ function process_input() {
     context.restore()
   //}
   elm.style.visibility = "visible";
+  if (document.activeElement !== elm) {
+    elm.focus();
+  }
   elm.maxLength = "20";
   elm.style.left = Math.floor(canvas.width/2-50 )+"px";
   elm.style.top = Math.floor(canvas.height/2-100)+"px";
   //check for the entry
   if(entry_complete) {
-    console.log('entry is complete')
     entry_complete = false;
     elm.style.visibility = "hidden";
-    is_paused=false;
     bodies.type['planets'][get_input[1]].name = elm.value;
     //Easter egg
     if(bodies.type['planets'][get_input[1]].name.match(/jumbify/i)) {
@@ -450,18 +515,18 @@ function process_input() {
     }
     elm.value = '';
     get_input = [];
+    if (input_container) {
+      input_container.focus();
+    }
   }
 }
 
 var entry_complete = false;
 function user_input_keypress(e) {
-  console.log(e);
   var selection = e.which || e.keyCode;
   if(selection ==13) {
-    console.log('entry complete')
     entry_complete = true;
   }
-  console.log(entry_complete);
 }
 
 function draw_hero_projectiles(canvas,context) {
@@ -1700,7 +1765,7 @@ function check_scan(canvas,context) {
     min_range = d
     best_p = i
   }
-  if(best_p) {
+  if(best_p !== null) {
     // We have a planet
     if(bodies.type['planets'][best_p].name=='') {
       context.save();

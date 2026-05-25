@@ -6,24 +6,29 @@ Via the Apache 2.0 license you are free to distribute and modify this software a
 
 If you just want to play it, you can visit
 
-http://vanduul.space
+https://vanduul.space
 
 Or you can run it yourself.
 
-It can be run as a react App
+It can be run locally with Vite
 ```
 $ cd vanduul.space
 $ npm install
-$ npm run start
+$ npm run dev
 ```
 
-or it can be ran through docker
+To create the GitHub Pages build locally
+
+```
+$ npm run build
+```
+
+That writes the production site into `docs/`, which matches the current GitHub Pages branch-folder setup.
+
+It can also be run through docker
 
 `docker run -p 8080:8080 -d -t vacation/vanduul.space`
 
 That will launch a server with Vanduul Space running on port 8080.  
 
-You can add it to a website as a widget through NPM
-
-`$ npm install vanduul.space`
-
+The current codebase is plain JavaScript mounted through a lightweight Vite shell.
