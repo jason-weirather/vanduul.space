@@ -25,10 +25,13 @@ $ npm run build
 
 That writes the production site into `docs/`, which matches the current GitHub Pages branch-folder setup.
 
-It can also be run through docker
+It can also be built and served through Docker
 
-`docker run -p 8080:8080 -d -t vacation/vanduul.space`
+```bash
+$ docker build -t vanduul-space .
+$ docker run --rm -p 8080:80 vanduul-space
+```
 
-That will launch a server with Vanduul Space running on port 8080.  
+That will build the site from the current checkout and serve it on port `8080`.
 
 The current codebase is plain JavaScript mounted through a lightweight Vite shell.

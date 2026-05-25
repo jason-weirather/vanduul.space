@@ -1,14 +1,20 @@
-FROM ubuntu:16.04
-RUN apt-get update \
-    && apt-get upgrade -y \
-    && apt-get install -y \
-               git curl
-RUN curl -sL https://deb.nodesource.com/setup_6.x | bash -
-RUN apt-get install -y nodejs
+FROM node:22-alpine AS build
 
-RUN git clone https://github.com/jason-weirather/vanduul.space.git \
-    && cd vanduul.space && npm install \
-    && npm run build
-RUN npm install -g http-server
-WORKDIR /vanduul.space/build/
-CMD ["http-server", "-s"]
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY index.html vite.config.js ./
+COPY public ./public
+COPY src ./src
+
+RUN npm run build
+
+FROM nginx:1.27-alpine
+
+COPY --from=build /app/docs /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
